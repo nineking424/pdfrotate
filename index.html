@@ -94,6 +94,23 @@
     color: var(--colors-primary);
     border: 1px solid var(--colors-primary);
   }
+
+  /* 회전 버튼 — 텍스트 없는 44×44 원형 아이콘 버튼 */
+  #rotate-buttons {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-sm);
+  }
+  .rotate-button {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+  .rotate-button svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+  }
   #file-input:focus-visible + .file-label {
     outline: 2px solid var(--colors-primary-focus);
     outline-offset: 2px;
@@ -144,19 +161,29 @@
     letter-spacing: -0.224px;
   }
 
-  /* 미리보기 썸네일(최대 3페이지) — 시스템에서 유일하게 그림자가 허용되는 요소 (DESIGN.md) */
+  /* 미리보기 썸네일(최대 10페이지) — 가로 슬라이드 스트립.
+     썸네일은 시스템에서 유일하게 그림자가 허용되는 요소 (DESIGN.md) */
+  #preview-area { width: 100%; min-width: 0; }
   #preview-strip {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
     align-items: flex-start;
     gap: var(--spacing-lg);
+    max-width: 100%;
+    overflow-x: auto;
+    padding: var(--spacing-lg); /* 그림자가 스크롤 컨테이너에 잘리지 않게 여유를 둔다 */
+    scroll-snap-type: x proximity;
   }
   .preview-canvas {
+    flex: none;
+    scroll-snap-align: center;
     max-width: min(180px, 80vw);
     height: auto;
     box-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px;
   }
+  /* 내용이 컨테이너보다 좁으면 중앙 정렬, 넘치면 정상 스크롤
+     (justify-content: center는 넘칠 때 앞쪽이 잘려 스크롤 불가가 된다) */
+  .preview-canvas:first-child { margin-left: auto; }
+  .preview-canvas:last-child { margin-right: auto; }
 
   /* 상태 문구 — ink 톤 유지, 레이아웃 점프 방지 */
   #status { min-height: 25px; }
@@ -167,10 +194,10 @@
     h1 { font-size: 34px; }
   }
 
-  /* 좁은 화면(≤480px): 버튼 세로 배치 */
+  /* 좁은 화면(≤480px): 세로 배치 — 회전 아이콘 버튼은 중앙 가로 정렬 유지 */
   @media (max-width: 480px) {
     #controls { flex-direction: column; align-items: stretch; }
-    .rotate-button, .download-button, .file-label { width: 100%; }
+    .download-button, .file-label { width: 100%; }
   }
 
   /* 작은 폰(≤419px): 헤드라인 28px */
@@ -191,8 +218,20 @@
     <figcaption id="preview-caption"></figcaption>
   </figure>
   <div id="controls">
-    <button type="button" class="pill rotate-button" data-delta="270" disabled>↺ 반시계 90°</button>
-    <button type="button" class="pill rotate-button" data-delta="90" disabled>↻ 시계 90°</button>
+    <div id="rotate-buttons">
+      <button type="button" class="pill rotate-button" data-delta="270" aria-label="반시계 방향으로 90도 회전" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 4a8 8 0 1 0 8 8"/>
+          <path d="M14.5 1.5 12 4l2.5 2.5"/>
+        </svg>
+      </button>
+      <button type="button" class="pill rotate-button" data-delta="90" aria-label="시계 방향으로 90도 회전" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 4a8 8 0 1 1-8 8"/>
+          <path d="M9.5 1.5 12 4 9.5 6.5"/>
+        </svg>
+      </button>
+    </div>
     <button type="button" id="download-button" class="pill download-button" disabled>다운로드</button>
   </div>
   <p id="status" role="status"></p>
@@ -288,9 +327,9 @@ function downloadBytes(bytes, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-// ===== 미리보기 (최대 첫 3페이지 — pdfjs-dist, 워커도 같은 고정 버전) =====
+// ===== 미리보기 (최대 첫 10페이지, 가로 슬라이드 — pdfjs-dist, 워커도 같은 고정 버전) =====
 
-const PREVIEW_PAGE_COUNT = 3;
+const PREVIEW_PAGE_COUNT = 10;
 const PREVIEW_CSS_WIDTH = 180;
 const previewArea = document.getElementById('preview-area');
 const previewStrip = document.getElementById('preview-strip');
