@@ -233,10 +233,6 @@
   <p class="notice">파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
   <input type="file" id="file-input" class="visually-hidden" accept="application/pdf,.pdf">
   <label for="file-input" class="pill file-label">PDF 파일 선택</label>
-  <figure id="preview-area" hidden>
-    <div id="preview-strip" role="img" aria-label="미리보기"></div>
-    <figcaption id="preview-caption"></figcaption>
-  </figure>
   <div id="controls">
     <div id="rotate-buttons">
       <button type="button" class="pill rotate-button" data-delta="270" aria-label="반시계 방향으로 90도 회전" disabled>
@@ -257,6 +253,10 @@
     <button type="button" id="download-button" class="pill download-button" disabled>다운로드</button>
   </div>
   <p id="status" role="status"></p>
+  <figure id="preview-area" hidden>
+    <div id="preview-strip" role="img" aria-label="미리보기"></div>
+    <figcaption id="preview-caption"></figcaption>
+  </figure>
 </main>
 
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
