@@ -95,6 +95,19 @@
     border: 1px solid var(--colors-primary);
   }
 
+  /* 파일 선택 전에는 파일 선택이 유일한 주 액션 — Action Blue 채움으로 승격 */
+  .file-label.primary {
+    background: var(--colors-primary);
+    color: var(--colors-on-primary);
+    border-color: var(--colors-primary);
+  }
+
+  /* 드래그 앤 드롭 안내 — 포인터가 있는 데스크톱 환경에서만 보인다 */
+  #drop-hint { display: none; }
+  @media (hover: hover) and (pointer: fine) {
+    #drop-hint { display: block; }
+  }
+
   /* 회전 버튼 — 텍스트 없는 44×44 원형 아이콘 버튼 */
   #rotate-buttons {
     display: flex;
@@ -229,11 +242,13 @@
 <body>
 <main>
   <h1>pdfrotate</h1>
-  <p>PDF 파일을 선택하고 회전 버튼으로 미리보기를 원하는 방향으로 맞춘 뒤, 다운로드 버튼을 누르면 모든 페이지가 회전된 결과 파일이 다운로드됩니다.</p>
+  <p>PDF의 모든 페이지를 한 번에 회전해 내려받을 수 있습니다.</p>
   <p class="notice">파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
   <input type="file" id="file-input" class="visually-hidden" accept="application/pdf,.pdf">
-  <label for="file-input" class="pill file-label">PDF 파일 선택</label>
-  <div id="controls">
+  <label for="file-input" id="file-label" class="pill file-label primary">PDF 파일 선택</label>
+  <p id="drop-hint" class="notice">파일을 이 창에 끌어다 놓아도 됩니다.</p>
+  <p id="file-meta" class="notice" hidden></p>
+  <div id="controls" hidden>
     <div id="rotate-buttons">
       <button type="button" class="pill rotate-button" data-delta="270" aria-label="반시계 방향으로 90도 회전" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -290,11 +305,13 @@ async function rotateAllPages(pdfBytes, deltaAngle, PDFLib) {
   return doc.save();
 }
 
-// 파일 열기 검증 — 파싱뿐 아니라 페이지 트리 접근까지 확인한다.
+// 파일 열기 검증 — 파싱뿐 아니라 페이지 트리 접근까지 확인하고 페이지 수를 돌려준다.
 // (pdf-lib의 관용 파서는 일부 손상 파일을 통과시키고 페이지 접근 시점에야 던진다.)
 async function assertOpenablePdf(pdfBytes, PDFLib) {
   const doc = await PDFLib.PDFDocument.load(pdfBytes);
-  if (doc.getPageCount() < 1) throw new Error('PDF has no pages');
+  const pageCount = doc.getPageCount();
+  if (pageCount < 1) throw new Error('PDF has no pages');
+  return pageCount;
 }
 
 // PDF 스펙상 헤더 "%PDF-"는 파일 앞 1024바이트 안에 있어야 한다.
@@ -425,6 +442,9 @@ const status = document.getElementById('status');
 const rotateButtons = Array.from(document.querySelectorAll('.rotate-button'));
 const downloadButton = document.getElementById('download-button');
 const nameInput = document.getElementById('name-input');
+const controls = document.getElementById('controls');
+const fileLabel = document.getElementById('file-label');
+const fileMeta = document.getElementById('file-meta');
 
 // 누적 회전의 정준 각도별 표시 이름
 const DELTA_LABELS = { 0: '회전 없음', 90: '시계 90°', 180: '180°', 270: '반시계 90°' };
@@ -460,12 +480,21 @@ function syncNameInput() {
 
 nameInput.addEventListener('input', () => { fileNameEdited = true; });
 
+// 파일 선택 전 첫 화면 상태 — 컨트롤은 숨기고 파일 선택을 주 액션으로 승격한다.
+function resetToFileSelection() {
+  controls.hidden = true;
+  fileMeta.hidden = true;
+  fileLabel.classList.add('primary');
+  fileLabel.textContent = 'PDF 파일 선택';
+}
+
 // 파일 선택 공통 경로 — <input> 선택과 드래그 앤 드롭이 함께 사용한다.
 async function openFile(file) {
   selectedBytes = null;
   selectedName = '';
   accumulatedDelta = 0;
   fileNameEdited = false;
+  resetToFileSelection();
   syncNameInput();
   updateControls();
   clearPreview();
@@ -478,9 +507,16 @@ async function openFile(file) {
     }
     bytes = await file.arrayBuffer();
     // 열기 검증 — 비-PDF·손상·보호 문서는 여기서 걸러 파일 선택 상태로 복귀한다 (#4).
-    await assertOpenablePdf(bytes, window.PDFLib);
+    const pageCount = await assertOpenablePdf(bytes, window.PDFLib);
     selectedBytes = bytes;
     selectedName = file.name;
+    // 단계적 노출 — 파일이 열린 뒤에야 회전·이름·다운로드가 나타나고,
+    // 파일 선택 버튼은 고스트 "다른 파일 선택"으로 물러난다.
+    controls.hidden = false;
+    fileMeta.textContent = file.name + ' · ' + pageCount + '페이지';
+    fileMeta.hidden = false;
+    fileLabel.classList.remove('primary');
+    fileLabel.textContent = '다른 파일 선택';
     updateControls();
     status.textContent = '회전 버튼으로 방향을 맞춘 뒤 다운로드 버튼을 눌러 주세요.';
     // 미리보기 실패는 회전·다운로드를 막지 않는다 — 버튼 활성화 이후 별도 try로 감싼다.
