@@ -87,8 +87,9 @@
     outline-offset: 2px;
   }
 
-  /* 파일 선택 — 고스트 필 (secondary pill: 투명 배경 + Action Blue 테두리) */
-  .file-label {
+  /* 파일 선택·회전 버튼 — 고스트 필 (secondary pill: 투명 배경 + Action Blue 테두리) */
+  .file-label,
+  .rotate-button {
     background: transparent;
     color: var(--colors-primary);
     border: 1px solid var(--colors-primary);
@@ -103,18 +104,19 @@
     outline-offset: 2px;
   }
 
-  /* 각도 버튼 3개 — Action Blue 필 버튼 */
-  .angle-button {
+  /* 다운로드 버튼 — 단 하나의 주 액션, Action Blue 필 버튼 */
+  .download-button {
     background: var(--colors-primary);
     color: var(--colors-on-primary);
     border: none;
   }
-  .angle-button:disabled {
+  .rotate-button:disabled,
+  .download-button:disabled {
     opacity: 0.4;
     cursor: default;
   }
 
-  #angle-buttons {
+  #controls {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
@@ -142,9 +144,16 @@
     letter-spacing: -0.224px;
   }
 
-  /* 미리보기 썸네일 — 시스템에서 유일하게 그림자가 허용되는 요소 (DESIGN.md) */
-  #preview-canvas {
-    max-width: min(240px, 80vw);
+  /* 미리보기 썸네일(최대 3페이지) — 시스템에서 유일하게 그림자가 허용되는 요소 (DESIGN.md) */
+  #preview-strip {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: var(--spacing-lg);
+  }
+  .preview-canvas {
+    max-width: min(180px, 80vw);
     height: auto;
     box-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px;
   }
@@ -160,8 +169,8 @@
 
   /* 좁은 화면(≤480px): 버튼 세로 배치 */
   @media (max-width: 480px) {
-    #angle-buttons { flex-direction: column; align-items: stretch; }
-    .angle-button, .file-label { width: 100%; }
+    #controls { flex-direction: column; align-items: stretch; }
+    .rotate-button, .download-button, .file-label { width: 100%; }
   }
 
   /* 작은 폰(≤419px): 헤드라인 28px */
@@ -173,18 +182,18 @@
 <body>
 <main>
   <h1>pdfrotate</h1>
-  <p>PDF 파일을 선택한 뒤 회전 각도를 고르면, 모든 페이지가 회전된 결과 파일이 즉시 다운로드됩니다.</p>
+  <p>PDF 파일을 선택하고 회전 버튼으로 미리보기를 원하는 방향으로 맞춘 뒤, 다운로드 버튼을 누르면 모든 페이지가 회전된 결과 파일이 다운로드됩니다.</p>
   <p class="notice">파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
   <input type="file" id="file-input" class="visually-hidden" accept="application/pdf,.pdf">
   <label for="file-input" class="pill file-label">PDF 파일 선택</label>
   <figure id="preview-area" hidden>
-    <canvas id="preview-canvas" aria-label="첫 페이지 미리보기"></canvas>
-    <figcaption>첫 페이지 미리보기</figcaption>
+    <div id="preview-strip" role="img" aria-label="미리보기"></div>
+    <figcaption id="preview-caption"></figcaption>
   </figure>
-  <div id="angle-buttons">
-    <button type="button" class="pill angle-button" data-delta="90" disabled>↻ 시계 90°</button>
-    <button type="button" class="pill angle-button" data-delta="180" disabled>↻↻ 180°</button>
-    <button type="button" class="pill angle-button" data-delta="270" disabled>↺ 반시계 90°</button>
+  <div id="controls">
+    <button type="button" class="pill rotate-button" data-delta="270" disabled>↺ 반시계 90°</button>
+    <button type="button" class="pill rotate-button" data-delta="90" disabled>↻ 시계 90°</button>
+    <button type="button" id="download-button" class="pill download-button" disabled>다운로드</button>
   </div>
   <p id="status" role="status"></p>
 </main>
@@ -279,65 +288,108 @@ function downloadBytes(bytes, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-// ===== 미리보기 (첫 페이지 썸네일 — pdfjs-dist, 워커도 같은 고정 버전) =====
+// ===== 미리보기 (최대 첫 3페이지 — pdfjs-dist, 워커도 같은 고정 버전) =====
 
-const PREVIEW_CSS_WIDTH = 240;
+const PREVIEW_PAGE_COUNT = 3;
+const PREVIEW_CSS_WIDTH = 180;
 const previewArea = document.getElementById('preview-area');
-const previewCanvas = document.getElementById('preview-canvas');
+const previewStrip = document.getElementById('preview-strip');
+const previewCaption = document.getElementById('preview-caption');
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 }
 
+let previewDoc = null;   // pdf.js 문서 — 파일이 바뀔 때만 교체
+let previewPages = [];   // 최대 3개 페이지 핸들
+let renderSeq = 0;       // 연타로 겹친 렌더링 중 최신 것만 화면에 남긴다
+
 function clearPreview() {
   previewArea.hidden = true;
-  previewCanvas.getContext('2d').clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  previewStrip.replaceChildren();
+  previewPages = [];
+  if (previewDoc) {
+    previewDoc.destroy();
+    previewDoc = null;
+  }
 }
 
-// 첫 페이지 한 장만 렌더링한다 (CONTEXT.md "미리보기").
-// getViewport가 페이지의 기존 회전값(/Rotate)을 반영하므로 뷰어에서 보이는 방향 그대로 나타난다.
-async function renderPreview(pdfBytes) {
+// 파일 선택 시 한 번만 문서를 열고 페이지 핸들을 잡아 둔다 (CONTEXT.md "미리보기").
+async function loadPreview(pdfBytes) {
+  clearPreview();
   if (!window.pdfjsLib) return; // CDN 로딩 실패 시 미리보기만 생략
   // pdf.js는 전달받은 버퍼를 워커로 이전(detach)하므로 반드시 복사본을 넘긴다.
-  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBytes.slice(0)) }).promise;
-  try {
-    const page = await doc.getPage(1);
-    const base = page.getViewport({ scale: 1 });
-    const viewport = page.getViewport({ scale: PREVIEW_CSS_WIDTH / base.width });
-    const outputScale = window.devicePixelRatio || 1;
-    previewCanvas.width = Math.floor(viewport.width * outputScale);
-    previewCanvas.height = Math.floor(viewport.height * outputScale);
-    previewCanvas.style.width = Math.floor(viewport.width) + 'px';
-    previewCanvas.style.height = Math.floor(viewport.height) + 'px';
+  previewDoc = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBytes.slice(0)) }).promise;
+  const count = Math.min(PREVIEW_PAGE_COUNT, previewDoc.numPages);
+  const pages = [];
+  for (let i = 1; i <= count; i++) pages.push(await previewDoc.getPage(i));
+  previewPages = pages;
+  previewCaption.textContent = previewDoc.numPages > count
+    ? '미리보기 — 첫 ' + count + '페이지 (총 ' + previewDoc.numPages + '페이지)'
+    : '미리보기 — 전체 ' + count + '페이지';
+}
+
+// 누적 회전을 반영해 미리보기를 다시 그린다.
+// 뷰포트 회전 = 페이지의 기존 회전값(/Rotate) + 누적 회전 — 다운로드 결과와 같은 방향이다.
+async function renderPreviews(deltaAngle) {
+  if (!previewPages.length) return;
+  const seq = ++renderSeq;
+  const outputScale = window.devicePixelRatio || 1;
+  const canvases = [];
+  for (const page of previewPages) {
+    const rotation = nextRotation(page.rotate, deltaAngle);
+    const base = page.getViewport({ scale: 1, rotation: rotation });
+    const viewport = page.getViewport({ scale: PREVIEW_CSS_WIDTH / base.width, rotation: rotation });
+    const canvas = document.createElement('canvas');
+    canvas.className = 'preview-canvas';
+    canvas.width = Math.floor(viewport.width * outputScale);
+    canvas.height = Math.floor(viewport.height * outputScale);
+    canvas.style.width = Math.floor(viewport.width) + 'px';
+    canvas.style.height = Math.floor(viewport.height) + 'px';
     await page.render({
-      canvasContext: previewCanvas.getContext('2d'),
+      canvasContext: canvas.getContext('2d'),
       viewport: viewport,
       transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null,
     }).promise;
-    previewArea.hidden = false;
-  } finally {
-    doc.destroy();
+    canvases.push(canvas);
   }
+  if (seq !== renderSeq) return; // 그 사이 더 새로운 렌더링이 시작됨 — 이 결과는 버린다
+  previewStrip.replaceChildren(...canvases);
+  previewArea.hidden = false;
 }
 
 const input = document.getElementById('file-input');
 const status = document.getElementById('status');
-const angleButtons = Array.from(document.querySelectorAll('.angle-button'));
+const rotateButtons = Array.from(document.querySelectorAll('.rotate-button'));
+const downloadButton = document.getElementById('download-button');
+
+// 누적 회전의 정준 각도별 표시 이름
+const DELTA_LABELS = { 0: '회전 없음', 90: '시계 90°', 180: '180°', 270: '반시계 90°' };
 
 // 선택된 파일 (브라우저 메모리에만 존재)
 let selectedBytes = null;
 let selectedName = '';
+let accumulatedDelta = 0; // 누적 회전 — 정준 표기 0 | 90 | 180 | 270
 
-function setButtonsEnabled(enabled) {
-  for (const button of angleButtons) button.disabled = !enabled;
+// 회전 버튼은 파일이 있으면 활성, 다운로드 버튼은 누적 회전이 0이 아닐 때만 활성
+// (0이면 내려받을 변화가 없다).
+function updateControls() {
+  for (const button of rotateButtons) button.disabled = !selectedBytes;
+  downloadButton.disabled = !selectedBytes || accumulatedDelta === 0;
+}
+
+function disableControls() {
+  for (const button of rotateButtons) button.disabled = true;
+  downloadButton.disabled = true;
 }
 
 // 파일 선택 공통 경로 — <input> 선택과 드래그 앤 드롭이 함께 사용한다.
 async function openFile(file) {
   selectedBytes = null;
   selectedName = '';
-  setButtonsEnabled(false);
+  accumulatedDelta = 0;
+  updateControls();
   clearPreview();
   status.textContent = '파일 여는 중…';
   let bytes = null;
@@ -351,11 +403,12 @@ async function openFile(file) {
     await assertOpenablePdf(bytes, window.PDFLib);
     selectedBytes = bytes;
     selectedName = file.name;
-    setButtonsEnabled(true);
-    status.textContent = '회전 각도를 선택하면 결과 파일이 즉시 다운로드됩니다.';
+    updateControls();
+    status.textContent = '회전 버튼으로 방향을 맞춘 뒤 다운로드 버튼을 눌러 주세요.';
     // 미리보기 실패는 회전·다운로드를 막지 않는다 — 버튼 활성화 이후 별도 try로 감싼다.
     try {
-      await renderPreview(selectedBytes);
+      await loadPreview(selectedBytes);
+      await renderPreviews(accumulatedDelta);
     } catch (previewError) {
       clearPreview();
     }
@@ -389,24 +442,34 @@ window.addEventListener('drop', (e) => {
   if (file) openFile(file); // 단일 파일만 — 첫 파일 외에는 무시 (CONTEXT.md "파일 선택")
 });
 
-for (const button of angleButtons) {
-  button.addEventListener('click', async () => {
+// 회전 버튼 — 누적 회전을 갱신하고 미리보기를 즉시 다시 그린다. 다운로드는 일어나지 않는다.
+for (const button of rotateButtons) {
+  button.addEventListener('click', () => {
     if (!selectedBytes) return;
-    const delta = Number(button.dataset.delta);
-    setButtonsEnabled(false);
-    status.textContent = '회전 중…';
-    try {
-      const rotated = await rotateAllPages(selectedBytes, delta, window.PDFLib);
-      downloadBytes(rotated, resultFileName(selectedName, delta));
-      status.textContent = '완료 — 결과 파일이 다운로드되었습니다. 다른 각도를 다시 선택할 수도 있습니다.';
-    } catch (e) {
-      // 선택 시 검증을 통과한 파일이므로 드물지만, 실패 시 같은 분류로 안내한다.
-      status.textContent = OPEN_FAILURE_MESSAGES[classifyOpenFailure(e, selectedBytes)];
-    } finally {
-      setButtonsEnabled(!!selectedBytes);
-    }
+    accumulatedDelta = nextRotation(accumulatedDelta, Number(button.dataset.delta));
+    updateControls();
+    status.textContent = '현재 회전: ' + DELTA_LABELS[accumulatedDelta];
+    // 렌더링 실패는 조작을 막지 않는다. 연타 시 renderSeq가 최신 결과만 남긴다.
+    renderPreviews(accumulatedDelta).catch(() => {});
   });
 }
+
+// 다운로드 버튼 — 누적 회전을 문서 전체에 상대 회전으로 적용해 결과 파일을 내려받는다.
+downloadButton.addEventListener('click', async () => {
+  if (!selectedBytes || accumulatedDelta === 0) return;
+  disableControls();
+  status.textContent = '회전 중…';
+  try {
+    const rotated = await rotateAllPages(selectedBytes, accumulatedDelta, window.PDFLib);
+    downloadBytes(rotated, resultFileName(selectedName, accumulatedDelta));
+    status.textContent = '완료 — 결과 파일이 다운로드되었습니다. 계속 회전하거나 다른 파일을 선택할 수 있습니다.';
+  } catch (e) {
+    // 선택 시 검증을 통과한 파일이므로 드물지만, 실패 시 같은 분류로 안내한다.
+    status.textContent = OPEN_FAILURE_MESSAGES[classifyOpenFailure(e, selectedBytes)];
+  } finally {
+    updateControls();
+  }
+});
 </script>
 </body>
 </html>
