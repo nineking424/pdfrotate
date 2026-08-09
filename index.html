@@ -263,7 +263,10 @@ const OPEN_FAILURE_MESSAGES = {
 // ===== CORE-END =====
 
 function downloadBytes(bytes, fileName) {
-  const blob = new Blob([bytes], { type: 'application/pdf' });
+  // application/pdf면 모바일 Safari 등이 다운로드 대신 즉석 열기(미리보기)를
+  // 하므로, 렌더링 불가 타입으로 지정해 다운로드를 강제한다. 파일명·확장자는
+  // download 속성이 보존한다.
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
