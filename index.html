@@ -140,20 +140,30 @@
     width: 100%;
   }
 
-  /* 다운로드 버튼 — 단 하나의 주 액션, Action Blue 44×44 원형 아이콘 버튼 */
+  /* 다운로드 버튼 — 단 하나의 주 액션, Action Blue 아이콘+텍스트 필 버튼 */
   .download-button {
     background: var(--colors-primary);
     color: var(--colors-on-primary);
     border: none;
-    width: 44px;
-    height: 44px;
-    padding: 0;
     flex: none;
   }
   .download-button svg {
     width: 20px;
     height: 20px;
     display: block;
+    flex: none;
+  }
+
+  /* 현재 회전 각도 배지 — 조작부 한가운데에서 상태를 보여준다 */
+  #angle-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    min-height: 44px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.224px;
   }
   .rotate-button:disabled,
   .download-button:disabled {
@@ -267,6 +277,10 @@
   <p id="drop-hint" class="notice">파일을 이 창에 끌어다 놓아도 됩니다.</p>
   <p id="file-meta" class="notice" hidden></p>
   <div id="controls" hidden>
+    <figure id="preview-area" hidden>
+      <div id="preview-strip" role="img" aria-label="미리보기"></div>
+      <figcaption id="preview-caption"></figcaption>
+    </figure>
     <div id="rotate-buttons">
       <button type="button" class="pill rotate-button" data-delta="270" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -275,6 +289,7 @@
         </svg>
         반시계 90°
       </button>
+      <span id="angle-badge" aria-label="현재 회전 각도">0°</span>
       <button type="button" class="pill rotate-button" data-delta="90" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"/>
@@ -283,19 +298,16 @@
         시계 90°
       </button>
     </div>
-    <figure id="preview-area" hidden>
-      <div id="preview-strip" role="img" aria-label="미리보기"></div>
-      <figcaption id="preview-caption"></figcaption>
-    </figure>
     <div id="name-row">
       <input type="text" id="name-input" class="name-input" aria-label="저장할 파일 이름"
              placeholder="저장할 파일 이름 (회전하면 자동 설정)" autocomplete="off" spellcheck="false" disabled>
-      <button type="button" id="download-button" class="pill download-button" aria-label="다운로드" disabled>
+      <button type="button" id="download-button" class="pill download-button" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="7 10 12 15 17 10"/>
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
+        다운로드
       </button>
     </div>
   </div>
@@ -473,6 +485,7 @@ const nameInput = document.getElementById('name-input');
 const controls = document.getElementById('controls');
 const fileLabel = document.getElementById('file-label');
 const fileMeta = document.getElementById('file-meta');
+const angleBadge = document.getElementById('angle-badge');
 
 // 누적 회전의 정준 각도별 표시 이름
 const DELTA_LABELS = { 0: '회전 없음', 90: '시계 90°', 180: '180°', 270: '반시계 90°' };
@@ -506,6 +519,10 @@ function syncNameInput() {
     : '';
 }
 
+function updateAngleBadge() {
+  angleBadge.textContent = accumulatedDelta + '°';
+}
+
 nameInput.addEventListener('input', () => { fileNameEdited = true; });
 
 // 파일 선택 전 첫 화면 상태 — 컨트롤은 숨기고 파일 선택을 주 액션으로 승격한다.
@@ -524,6 +541,7 @@ async function openFile(file) {
   fileNameEdited = false;
   resetToFileSelection();
   syncNameInput();
+  updateAngleBadge();
   updateControls();
   clearPreview();
   status.textContent = '파일 여는 중…';
@@ -590,8 +608,12 @@ for (const button of rotateButtons) {
     if (!selectedBytes) return;
     accumulatedDelta = nextRotation(accumulatedDelta, Number(button.dataset.delta));
     syncNameInput();
+    updateAngleBadge();
     updateControls();
-    status.textContent = '현재 회전: ' + DELTA_LABELS[accumulatedDelta];
+    // 0°로 돌아오면 다운로드가 꺼지는 이유를 함께 알려준다.
+    status.textContent = accumulatedDelta === 0
+      ? '현재 회전: 회전 없음 — 회전 버튼으로 방향을 맞추면 다운로드할 수 있습니다.'
+      : '현재 회전: ' + DELTA_LABELS[accumulatedDelta];
     // 렌더링 실패는 조작을 막지 않는다. 연타 시 renderSeq가 최신 결과만 남긴다.
     renderPreviews(accumulatedDelta).catch(() => {});
   });
