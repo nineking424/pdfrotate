@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pdfrotate</title>
+</head>
+<body>
+<h1>pdfrotate</h1>
+<p>PDF 파일을 선택하면 모든 페이지가 시계 방향 90° 회전된 결과 파일이 즉시 다운로드됩니다.</p>
+<p>파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
+<input type="file" id="file-input" accept="application/pdf,.pdf">
+<p id="status" role="status"></p>
+
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script>
+// ===== CORE-START (순수 로직 — Node 검증 스크립트가 이 구간을 추출해 실행한다) =====
+
+// 각도를 정준 표기(0 | 90 | 180 | 270)로 정규화한다.
+function normalizeAngle(angle) {
+  return ((angle % 360) + 360) % 360;
+}
+
+// 상대 회전: 페이지의 기존 회전값에 delta를 가산한 정준 각도를 돌려준다.
+function nextRotation(currentAngle, deltaAngle) {
+  return normalizeAngle(currentAngle + deltaAngle);
+}
+
+// 결과 파일명 규칙: {원본명}-rotated-{각도}.pdf
+function resultFileName(originalName, canonicalAngle) {
+  const base = originalName.replace(/\.pdf$/i, '');
+  return base + '-rotated-' + canonicalAngle + '.pdf';
+}
+
+// 문서 내 모든 페이지에 상대 회전 delta(시계 방향 도수)를 적용한 PDF 바이트를 돌려준다.
+async function rotateAllPages(pdfBytes, deltaAngle, PDFLib) {
+  const doc = await PDFLib.PDFDocument.load(pdfBytes);
+  for (const page of doc.getPages()) {
+    const current = page.getRotation().angle;
+    page.setRotation(PDFLib.degrees(nextRotation(current, deltaAngle)));
+  }
+  return doc.save();
+}
+
+// ===== CORE-END =====
+
+const DELTA = 90; // 이 트레이서 불릿의 유일한 회전 각도(시계 방향 90°)
+
+function downloadBytes(bytes, fileName) {
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+const input = document.getElementById('file-input');
+const status = document.getElementById('status');
+
+input.addEventListener('change', async () => {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  status.textContent = '회전 중…';
+  try {
+    const bytes = await file.arrayBuffer();
+    const rotated = await rotateAllPages(bytes, DELTA, window.PDFLib);
+    downloadBytes(rotated, resultFileName(file.name, DELTA));
+    status.textContent = '완료 — 결과 파일이 다운로드되었습니다.';
+  } catch (e) {
+    status.textContent = '이 파일을 처리할 수 없습니다. 다른 PDF 파일을 선택해 주세요.';
+  } finally {
+    input.value = '';
+  }
+});
+</script>
+</body>
+</html>
