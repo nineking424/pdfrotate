@@ -108,21 +108,18 @@
     #drop-hint { display: block; }
   }
 
-  /* 회전 버튼 — 텍스트 없는 44×44 원형 아이콘 버튼 */
+  /* 회전 버튼 — 아이콘 + 텍스트 필 버튼 */
   #rotate-buttons {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: var(--spacing-sm);
-  }
-  .rotate-button {
-    width: 44px;
-    height: 44px;
-    padding: 0;
   }
   .rotate-button svg {
     width: 20px;
     height: 20px;
     display: block;
+    flex: none;
   }
   #file-input:focus-visible + .file-label {
     outline: 2px solid var(--colors-primary-focus);
@@ -225,11 +222,13 @@
     padding: var(--spacing-lg); /* 그림자가 스크롤 컨테이너에 잘리지 않게 여유를 둔다 */
     scroll-snap-type: x proximity;
   }
+  /* 세로폭 고정 — 회전으로 페이지가 가로↔세로로 바뀌어도 영역 높이가 출렁이지 않는다.
+     넘치는 가로폭은 스트립의 가로 스크롤이 받아준다. */
   .preview-canvas {
     flex: none;
     scroll-snap-align: center;
-    max-width: min(180px, 80vw);
-    height: auto;
+    height: 240px;
+    width: auto;
     box-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px;
   }
   /* 내용이 컨테이너보다 좁으면 중앙 정렬, 넘치면 정상 스크롤
@@ -269,17 +268,19 @@
   <p id="file-meta" class="notice" hidden></p>
   <div id="controls" hidden>
     <div id="rotate-buttons">
-      <button type="button" class="pill rotate-button" data-delta="270" aria-label="반시계 방향으로 90도 회전" disabled>
+      <button type="button" class="pill rotate-button" data-delta="270" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="1 4 1 10 7 10"/>
           <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
         </svg>
+        반시계 90°
       </button>
-      <button type="button" class="pill rotate-button" data-delta="90" aria-label="시계 방향으로 90도 회전" disabled>
+      <button type="button" class="pill rotate-button" data-delta="90" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"/>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
         </svg>
+        시계 90°
       </button>
     </div>
     <figure id="preview-area" hidden>
@@ -396,7 +397,7 @@ function downloadBytes(bytes, fileName) {
 // ===== 미리보기 (최대 첫 10페이지, 가로 슬라이드 — pdfjs-dist, 워커도 같은 고정 버전) =====
 
 const PREVIEW_PAGE_COUNT = 10;
-const PREVIEW_CSS_WIDTH = 180;
+const PREVIEW_CSS_HEIGHT = 240; // 세로폭 고정 — 표시 높이는 CSS(.preview-canvas)와 함께 240px
 const previewArea = document.getElementById('preview-area');
 const previewStrip = document.getElementById('preview-strip');
 const previewCaption = document.getElementById('preview-caption');
@@ -445,13 +446,13 @@ async function renderPreviews(deltaAngle) {
   for (const page of previewPages) {
     const rotation = nextRotation(page.rotate, deltaAngle);
     const base = page.getViewport({ scale: 1, rotation: rotation });
-    const viewport = page.getViewport({ scale: PREVIEW_CSS_WIDTH / base.width, rotation: rotation });
+    const viewport = page.getViewport({ scale: PREVIEW_CSS_HEIGHT / base.height, rotation: rotation });
     const canvas = document.createElement('canvas');
     canvas.className = 'preview-canvas';
+    // 표시 크기는 CSS(height 240px 고정, width auto)가 정하고,
+    // 비트맵은 devicePixelRatio 배율로 선명도를 확보한다.
     canvas.width = Math.floor(viewport.width * outputScale);
     canvas.height = Math.floor(viewport.height * outputScale);
-    canvas.style.width = Math.floor(viewport.width) + 'px';
-    canvas.style.height = Math.floor(viewport.height) + 'px';
     await page.render({
       canvasContext: canvas.getContext('2d'),
       viewport: viewport,
