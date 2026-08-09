@@ -5,29 +5,188 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pdfrotate</title>
 <style>
+  /* ===== DESIGN.md 토큰 (인라인 hex 금지 — 토큰 참조만 사용) ===== */
+  :root {
+    --colors-primary: #0066cc;        /* Action Blue — 유일한 액센트 */
+    --colors-primary-focus: #0071e3;  /* Focus Blue — 키보드 포커스 링 전용 */
+    --colors-canvas-parchment: #f5f5f7;
+    --colors-ink: #1d1d1f;            /* 모든 텍스트 — 오류 메시지도 이 톤 유지 */
+    --colors-on-primary: #ffffff;
+    --rounded-pill: 9999px;
+    --spacing-sm: 12px;
+    --spacing-lg: 24px;
+    --spacing-xxl: 48px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { margin: 0; }
+
+  /* 파치먼트 단일 화면, 중앙 정렬 스택. 본문 17px/400/1.47 + 음수 자간 */
+  body {
+    background: var(--colors-canvas-parchment);
+    color: var(--colors-ink);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.47;
+    letter-spacing: -0.374px;
+    min-height: 100vh;
+    display: flex;
+    padding: var(--spacing-xxl) var(--spacing-lg);
+  }
+
+  main {
+    margin: auto;             /* 안전한 수직·수평 중앙 정렬 */
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--spacing-lg);
+  }
+
+  /* 헤드라인 — 웨이트 600 + 음수 자간 ("Apple tight") */
+  h1 {
+    margin: 0;
+    font-size: 40px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.28px;
+  }
+
+  p { margin: 0; }
+
+  /* 안내 문구 — 캡션 14px, ink 톤 (제2 색 금지) */
+  .notice {
+    font-size: 14px;
+    line-height: 1.43;
+    letter-spacing: -0.224px;
+  }
+
+  /* 필 버튼 공통 — 터치 타깃 44px 이상, 그림자 없음 */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 11px 22px;
+    border-radius: var(--rounded-pill);
+    font: inherit;
+    letter-spacing: -0.374px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pill:active:not(:disabled) { transform: scale(0.95); }  /* 시스템 공통 눌림 상태 */
+  .pill:focus-visible {
+    outline: 2px solid var(--colors-primary-focus);
+    outline-offset: 2px;
+  }
+
+  /* 파일 선택 — 고스트 필 (secondary pill: 투명 배경 + Action Blue 테두리) */
+  .file-label {
+    background: transparent;
+    color: var(--colors-primary);
+    border: 1px solid var(--colors-primary);
+  }
+  #file-input:focus-visible + .file-label {
+    outline: 2px solid var(--colors-primary-focus);
+    outline-offset: 2px;
+  }
+  /* 드래그 앤 드롭(데스크톱 보조 경로) 중 드롭 대상 표시 */
+  body.dropping .file-label {
+    outline: 2px solid var(--colors-primary-focus);
+    outline-offset: 2px;
+  }
+
+  /* 각도 버튼 3개 — Action Blue 필 버튼 */
+  .angle-button {
+    background: var(--colors-primary);
+    color: var(--colors-on-primary);
+    border: none;
+  }
+  .angle-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  #angle-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  figure { margin: 0; }
+  figcaption {
+    margin-top: var(--spacing-sm);
+    font-size: 14px;
+    line-height: 1.43;
+    letter-spacing: -0.224px;
+  }
+
   /* 미리보기 썸네일 — 시스템에서 유일하게 그림자가 허용되는 요소 (DESIGN.md) */
   #preview-canvas {
     max-width: min(240px, 80vw);
     height: auto;
     box-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px;
   }
+
+  /* 상태 문구 — ink 톤 유지, 레이아웃 점프 방지 */
+  #status { min-height: 25px; }
+
+  /* 반응형 — 폰(≤640px): 헤드라인 34px, 여백 축소 */
+  @media (max-width: 640px) {
+    body { padding: var(--spacing-lg); }
+    h1 { font-size: 34px; }
+  }
+
+  /* 좁은 화면(≤480px): 버튼 세로 배치 */
+  @media (max-width: 480px) {
+    #angle-buttons { flex-direction: column; align-items: stretch; }
+    .angle-button, .file-label { width: 100%; }
+  }
+
+  /* 작은 폰(≤419px): 헤드라인 28px */
+  @media (max-width: 419px) {
+    h1 { font-size: 28px; }
+  }
 </style>
 </head>
 <body>
-<h1>pdfrotate</h1>
-<p>PDF 파일을 선택한 뒤 회전 각도를 고르면, 모든 페이지가 회전된 결과 파일이 즉시 다운로드됩니다.</p>
-<p>파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
-<input type="file" id="file-input" accept="application/pdf,.pdf">
-<figure id="preview-area" hidden>
-  <canvas id="preview-canvas" aria-label="첫 페이지 미리보기"></canvas>
-  <figcaption>첫 페이지 미리보기</figcaption>
-</figure>
-<div id="angle-buttons">
-  <button type="button" class="angle-button" data-delta="90" disabled>↻ 시계 90°</button>
-  <button type="button" class="angle-button" data-delta="180" disabled>↻↻ 180°</button>
-  <button type="button" class="angle-button" data-delta="270" disabled>↺ 반시계 90°</button>
-</div>
-<p id="status" role="status"></p>
+<main>
+  <h1>pdfrotate</h1>
+  <p>PDF 파일을 선택한 뒤 회전 각도를 고르면, 모든 페이지가 회전된 결과 파일이 즉시 다운로드됩니다.</p>
+  <p class="notice">파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
+  <input type="file" id="file-input" class="visually-hidden" accept="application/pdf,.pdf">
+  <label for="file-input" class="pill file-label">PDF 파일 선택</label>
+  <figure id="preview-area" hidden>
+    <canvas id="preview-canvas" aria-label="첫 페이지 미리보기"></canvas>
+    <figcaption>첫 페이지 미리보기</figcaption>
+  </figure>
+  <div id="angle-buttons">
+    <button type="button" class="pill angle-button" data-delta="90" disabled>↻ 시계 90°</button>
+    <button type="button" class="pill angle-button" data-delta="180" disabled>↻↻ 180°</button>
+    <button type="button" class="pill angle-button" data-delta="270" disabled>↺ 반시계 90°</button>
+  </div>
+  <p id="status" role="status"></p>
+</main>
 
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -93,7 +252,7 @@ function classifyOpenFailure(error, bytes) {
   return 'corrupt';
 }
 
-// 오류 메시지 (한국어 전용, "업로드" 금지 — CONTEXT.md)
+// 오류 메시지 (한국어 전용, 서버 전송을 암시하는 단어 금지 — CONTEXT.md "파일 선택")
 const OPEN_FAILURE_MESSAGES = {
   'protected': '보호 문서(열람 암호가 걸린 PDF)는 지원하지 않습니다. 암호가 없는 PDF 파일을 선택해 주세요.',
   'not-pdf': 'PDF 파일이 아닙니다. PDF 파일을 선택해 주세요.',
@@ -168,9 +327,8 @@ function setButtonsEnabled(enabled) {
   for (const button of angleButtons) button.disabled = !enabled;
 }
 
-input.addEventListener('change', async () => {
-  const file = input.files && input.files[0];
-  if (!file) return;
+// 파일 선택 공통 경로 — <input> 선택과 드래그 앤 드롭이 함께 사용한다.
+async function openFile(file) {
   selectedBytes = null;
   selectedName = '';
   setButtonsEnabled(false);
@@ -197,9 +355,32 @@ input.addEventListener('change', async () => {
     }
   } catch (e) {
     status.textContent = OPEN_FAILURE_MESSAGES[classifyOpenFailure(e, bytes)];
-  } finally {
-    input.value = '';
   }
+}
+
+input.addEventListener('change', () => {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (file) openFile(file);
+});
+
+// ===== 드래그 앤 드롭 — 데스크톱 보조 경로 (터치 기기에서는 파일 선택 버튼 사용) =====
+
+window.addEventListener('dragover', (e) => {
+  e.preventDefault(); // 브라우저 기본 동작(파일을 새 탭으로 여는 것)을 막는다.
+  document.body.classList.add('dropping');
+});
+
+window.addEventListener('dragleave', (e) => {
+  // 창 밖으로 나갈 때만 표시를 걷는다 (자식 요소 간 이동은 무시).
+  if (!e.relatedTarget) document.body.classList.remove('dropping');
+});
+
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  document.body.classList.remove('dropping');
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) openFile(file); // 단일 파일만 — 첫 파일 외에는 무시 (CONTEXT.md "파일 선택")
 });
 
 for (const button of angleButtons) {
