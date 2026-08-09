@@ -60,6 +60,46 @@ async function rotateAllPages(pdfBytes, deltaAngle, PDFLib) {
   return doc.save();
 }
 
+// 파일 열기 검증 — 파싱뿐 아니라 페이지 트리 접근까지 확인한다.
+// (pdf-lib의 관용 파서는 일부 손상 파일을 통과시키고 페이지 접근 시점에야 던진다.)
+async function assertOpenablePdf(pdfBytes, PDFLib) {
+  const doc = await PDFLib.PDFDocument.load(pdfBytes);
+  if (doc.getPageCount() < 1) throw new Error('PDF has no pages');
+}
+
+// PDF 스펙상 헤더 "%PDF-"는 파일 앞 1024바이트 안에 있어야 한다.
+function hasPdfHeader(bytes) {
+  if (!bytes) return false;
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const marker = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
+  const limit = Math.min(view.length, 1024) - marker.length;
+  for (let i = 0; i <= limit; i++) {
+    let match = true;
+    for (let j = 0; j < marker.length; j++) {
+      if (view[i + j] !== marker[j]) { match = false; break; }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
+// 파일 열기 실패를 세 부류로 분류한다: 보호 문서 / 비-PDF / 손상된 PDF.
+// pdf-lib은 열람 암호가 걸린 문서에 EncryptedPDFError를 던진다.
+function classifyOpenFailure(error, bytes) {
+  const name = error && error.name;
+  const message = error && error.message ? String(error.message) : '';
+  if (name === 'EncryptedPDFError' || /encrypted/i.test(message)) return 'protected';
+  if (!hasPdfHeader(bytes)) return 'not-pdf';
+  return 'corrupt';
+}
+
+// 오류 메시지 (한국어 전용, "업로드" 금지 — CONTEXT.md)
+const OPEN_FAILURE_MESSAGES = {
+  'protected': '보호 문서(열람 암호가 걸린 PDF)는 지원하지 않습니다. 암호가 없는 PDF 파일을 선택해 주세요.',
+  'not-pdf': 'PDF 파일이 아닙니다. PDF 파일을 선택해 주세요.',
+  'corrupt': '손상된 PDF라서 열 수 없습니다. 다른 PDF 파일을 선택해 주세요.',
+};
+
 // ===== CORE-END =====
 
 function downloadBytes(bytes, fileName) {
@@ -136,8 +176,16 @@ input.addEventListener('change', async () => {
   setButtonsEnabled(false);
   clearPreview();
   status.textContent = '파일 여는 중…';
+  let bytes = null;
   try {
-    selectedBytes = await file.arrayBuffer();
+    if (!window.PDFLib) {
+      status.textContent = '처리에 필요한 구성 요소를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 새로고침해 주세요.';
+      return;
+    }
+    bytes = await file.arrayBuffer();
+    // 열기 검증 — 비-PDF·손상·보호 문서는 여기서 걸러 파일 선택 상태로 복귀한다 (#4).
+    await assertOpenablePdf(bytes, window.PDFLib);
+    selectedBytes = bytes;
     selectedName = file.name;
     setButtonsEnabled(true);
     status.textContent = '회전 각도를 선택하면 결과 파일이 즉시 다운로드됩니다.';
@@ -148,7 +196,7 @@ input.addEventListener('change', async () => {
       clearPreview();
     }
   } catch (e) {
-    status.textContent = '이 파일을 처리할 수 없습니다. 다른 PDF 파일을 선택해 주세요.';
+    status.textContent = OPEN_FAILURE_MESSAGES[classifyOpenFailure(e, bytes)];
   } finally {
     input.value = '';
   }
@@ -165,7 +213,8 @@ for (const button of angleButtons) {
       downloadBytes(rotated, resultFileName(selectedName, delta));
       status.textContent = '완료 — 결과 파일이 다운로드되었습니다. 다른 각도를 다시 선택할 수도 있습니다.';
     } catch (e) {
-      status.textContent = '이 파일을 처리할 수 없습니다. 다른 PDF 파일을 선택해 주세요.';
+      // 선택 시 검증을 통과한 파일이므로 드물지만, 실패 시 같은 분류로 안내한다.
+      status.textContent = OPEN_FAILURE_MESSAGES[classifyOpenFailure(e, selectedBytes)];
     } finally {
       setButtonsEnabled(!!selectedBytes);
     }
