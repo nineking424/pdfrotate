@@ -7,9 +7,14 @@
 </head>
 <body>
 <h1>pdfrotate</h1>
-<p>PDF 파일을 선택하면 모든 페이지가 시계 방향 90° 회전된 결과 파일이 즉시 다운로드됩니다.</p>
+<p>PDF 파일을 선택한 뒤 회전 각도를 고르면, 모든 페이지가 회전된 결과 파일이 즉시 다운로드됩니다.</p>
 <p>파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
 <input type="file" id="file-input" accept="application/pdf,.pdf">
+<div id="angle-buttons">
+  <button type="button" class="angle-button" data-delta="90" disabled>↻ 시계 90°</button>
+  <button type="button" class="angle-button" data-delta="180" disabled>↻↻ 180°</button>
+  <button type="button" class="angle-button" data-delta="270" disabled>↺ 반시계 90°</button>
+</div>
 <p id="status" role="status"></p>
 
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
@@ -44,8 +49,6 @@ async function rotateAllPages(pdfBytes, deltaAngle, PDFLib) {
 
 // ===== CORE-END =====
 
-const DELTA = 90; // 이 트레이서 불릿의 유일한 회전 각도(시계 방향 90°)
-
 function downloadBytes(bytes, fileName) {
   const blob = new Blob([bytes], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
@@ -60,22 +63,52 @@ function downloadBytes(bytes, fileName) {
 
 const input = document.getElementById('file-input');
 const status = document.getElementById('status');
+const angleButtons = Array.from(document.querySelectorAll('.angle-button'));
+
+// 선택된 파일 (브라우저 메모리에만 존재)
+let selectedBytes = null;
+let selectedName = '';
+
+function setButtonsEnabled(enabled) {
+  for (const button of angleButtons) button.disabled = !enabled;
+}
 
 input.addEventListener('change', async () => {
   const file = input.files && input.files[0];
   if (!file) return;
-  status.textContent = '회전 중…';
+  selectedBytes = null;
+  selectedName = '';
+  setButtonsEnabled(false);
+  status.textContent = '파일 여는 중…';
   try {
-    const bytes = await file.arrayBuffer();
-    const rotated = await rotateAllPages(bytes, DELTA, window.PDFLib);
-    downloadBytes(rotated, resultFileName(file.name, DELTA));
-    status.textContent = '완료 — 결과 파일이 다운로드되었습니다.';
+    selectedBytes = await file.arrayBuffer();
+    selectedName = file.name;
+    setButtonsEnabled(true);
+    status.textContent = '회전 각도를 선택하면 결과 파일이 즉시 다운로드됩니다.';
   } catch (e) {
     status.textContent = '이 파일을 처리할 수 없습니다. 다른 PDF 파일을 선택해 주세요.';
   } finally {
     input.value = '';
   }
 });
+
+for (const button of angleButtons) {
+  button.addEventListener('click', async () => {
+    if (!selectedBytes) return;
+    const delta = Number(button.dataset.delta);
+    setButtonsEnabled(false);
+    status.textContent = '회전 중…';
+    try {
+      const rotated = await rotateAllPages(selectedBytes, delta, window.PDFLib);
+      downloadBytes(rotated, resultFileName(selectedName, delta));
+      status.textContent = '완료 — 결과 파일이 다운로드되었습니다. 다른 각도를 다시 선택할 수도 있습니다.';
+    } catch (e) {
+      status.textContent = '이 파일을 처리할 수 없습니다. 다른 PDF 파일을 선택해 주세요.';
+    } finally {
+      setButtonsEnabled(!!selectedBytes);
+    }
+  });
+}
 </script>
 </body>
 </html>
