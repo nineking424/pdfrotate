@@ -22,6 +22,9 @@
 
   html, body { margin: 0; }
 
+  /* display: flex 등이 UA의 [hidden] 규칙을 이기지 못하게 한다 — 단계적 노출의 전제 */
+  [hidden] { display: none !important; }
+
   /* 파치먼트 단일 화면, 중앙 정렬 스택. 본문 17px/400/1.47 + 음수 자간 */
   body {
     background: var(--colors-canvas-parchment);
@@ -255,10 +258,17 @@
     h1 { font-size: 34px; }
   }
 
-  /* 좁은 화면(≤480px): 세로 배치 — 아이콘 버튼 줄은 중앙 정렬 유지 */
+  /* 좁은 화면(≤480px): 세로 배치 —
+     회전 줄은 [버튼|배지|버튼] 한 줄 유지(버튼이 남는 폭을 나눠 가짐),
+     파일 이름과 다운로드는 각각 전체 폭으로 쌓는다 */
   @media (max-width: 480px) {
     #controls { flex-direction: column; align-items: stretch; }
     .file-label { width: 100%; }
+    #rotate-buttons { flex-wrap: nowrap; }
+    .rotate-button { flex: 1; min-width: 0; padding: 11px 8px; }
+    #name-row { flex-wrap: wrap; }
+    .name-input { flex: 1 1 100%; max-width: none; }
+    .download-button { flex: 1 1 100%; }
   }
 
   /* 작은 폰(≤419px): 헤드라인 28px */
@@ -300,7 +310,7 @@
     </div>
     <div id="name-row">
       <input type="text" id="name-input" class="name-input" aria-label="저장할 파일 이름"
-             placeholder="저장할 파일 이름 (회전하면 자동 설정)" autocomplete="off" spellcheck="false" disabled>
+             placeholder="저장할 파일 이름" autocomplete="off" spellcheck="false" disabled>
       <button type="button" id="download-button" class="pill download-button" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
