@@ -134,11 +134,29 @@
     outline-offset: 2px;
   }
 
-  /* 다운로드 버튼 — 단 하나의 주 액션, Action Blue 필 버튼 */
+  /* 파일 이름 + 다운로드 아이콘 버튼 한 줄 배치 */
+  #name-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+  }
+
+  /* 다운로드 버튼 — 단 하나의 주 액션, Action Blue 44×44 원형 아이콘 버튼 */
   .download-button {
     background: var(--colors-primary);
     color: var(--colors-on-primary);
     border: none;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    flex: none;
+  }
+  .download-button svg {
+    width: 20px;
+    height: 20px;
+    display: block;
   }
   .rotate-button:disabled,
   .download-button:disabled {
@@ -156,7 +174,8 @@
 
   /* 파일 이름 입력 — DESIGN.md search-input 문법 (필 형태, 흰 배경, 헤어라인 테두리) */
   .name-input {
-    width: 100%;
+    flex: 0 1 360px;
+    min-width: 0;
     max-width: 360px;
     min-height: 44px;
     padding: 12px 20px;
@@ -227,10 +246,10 @@
     h1 { font-size: 34px; }
   }
 
-  /* 좁은 화면(≤480px): 세로 배치 — 회전 아이콘 버튼은 중앙 가로 정렬 유지 */
+  /* 좁은 화면(≤480px): 세로 배치 — 아이콘 버튼 줄은 중앙 정렬 유지 */
   @media (max-width: 480px) {
     #controls { flex-direction: column; align-items: stretch; }
-    .download-button, .file-label { width: 100%; }
+    .file-label { width: 100%; }
   }
 
   /* 작은 폰(≤419px): 헤드라인 28px */
@@ -267,9 +286,17 @@
       <div id="preview-strip" role="img" aria-label="미리보기"></div>
       <figcaption id="preview-caption"></figcaption>
     </figure>
-    <input type="text" id="name-input" class="name-input" aria-label="저장할 파일 이름"
-           placeholder="저장할 파일 이름 (회전하면 자동 설정)" autocomplete="off" spellcheck="false" disabled>
-    <button type="button" id="download-button" class="pill download-button" disabled>다운로드</button>
+    <div id="name-row">
+      <input type="text" id="name-input" class="name-input" aria-label="저장할 파일 이름"
+             placeholder="저장할 파일 이름 (회전하면 자동 설정)" autocomplete="off" spellcheck="false" disabled>
+      <button type="button" id="download-button" class="pill download-button" aria-label="다운로드" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <p id="status" role="status"></p>
 </main>
