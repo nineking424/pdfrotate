@@ -32,6 +32,7 @@
     line-height: 1.47;
     letter-spacing: -0.374px;
     min-height: 100vh;
+    min-height: 100dvh; /* iOS Safari — 주소창 수축 시 실제 보이는 높이 기준 (구형 브라우저는 위 100vh 사용) */
     display: flex;
     padding: var(--spacing-xxl) var(--spacing-lg);
   }
@@ -270,7 +271,9 @@ function downloadBytes(bytes, fileName) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // iOS Safari는 blob URL 내비게이션을 비동기로 시작하므로 즉시 revoke하면
+  // 다운로드가 실패할 수 있다(WebKitBlobResource 오류). 지연 후 해제한다.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 // ===== 미리보기 (첫 페이지 썸네일 — pdfjs-dist, 워커도 같은 고정 버전) =====
