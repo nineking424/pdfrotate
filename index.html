@@ -248,15 +248,15 @@
         </svg>
       </button>
     </div>
+    <figure id="preview-area" hidden>
+      <div id="preview-strip" role="img" aria-label="미리보기"></div>
+      <figcaption id="preview-caption"></figcaption>
+    </figure>
     <input type="text" id="name-input" class="name-input" aria-label="저장할 파일 이름"
            placeholder="저장할 파일 이름 (회전하면 자동 설정)" autocomplete="off" spellcheck="false" disabled>
     <button type="button" id="download-button" class="pill download-button" disabled>다운로드</button>
   </div>
   <p id="status" role="status"></p>
-  <figure id="preview-area" hidden>
-    <div id="preview-strip" role="img" aria-label="미리보기"></div>
-    <figcaption id="preview-caption"></figcaption>
-  </figure>
 </main>
 
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
