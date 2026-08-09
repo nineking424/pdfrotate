@@ -141,6 +141,26 @@
     width: 100%;
   }
 
+  /* 파일 이름 입력 — DESIGN.md search-input 문법 (필 형태, 흰 배경, 헤어라인 테두리) */
+  .name-input {
+    width: 100%;
+    max-width: 360px;
+    min-height: 44px;
+    padding: 12px 20px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: var(--rounded-pill);
+    background: #ffffff;             /* {colors.canvas} */
+    color: var(--colors-ink);
+    font: inherit;
+    letter-spacing: -0.374px;
+    text-align: center;
+  }
+  .name-input:focus-visible {
+    outline: 2px solid var(--colors-primary-focus);
+    outline-offset: 2px;
+  }
+  .name-input:disabled { opacity: 0.4; }
+
   .visually-hidden {
     position: absolute;
     width: 1px;
@@ -232,6 +252,8 @@
         </svg>
       </button>
     </div>
+    <input type="text" id="name-input" class="name-input" aria-label="저장할 파일 이름"
+           placeholder="저장할 파일 이름 (회전하면 자동 설정)" autocomplete="off" spellcheck="false" disabled>
     <button type="button" id="download-button" class="pill download-button" disabled>다운로드</button>
   </div>
   <p id="status" role="status"></p>
@@ -402,6 +424,7 @@ const input = document.getElementById('file-input');
 const status = document.getElementById('status');
 const rotateButtons = Array.from(document.querySelectorAll('.rotate-button'));
 const downloadButton = document.getElementById('download-button');
+const nameInput = document.getElementById('name-input');
 
 // 누적 회전의 정준 각도별 표시 이름
 const DELTA_LABELS = { 0: '회전 없음', 90: '시계 90°', 180: '180°', 270: '반시계 90°' };
@@ -409,25 +432,41 @@ const DELTA_LABELS = { 0: '회전 없음', 90: '시계 90°', 180: '180°', 270:
 // 선택된 파일 (브라우저 메모리에만 존재)
 let selectedBytes = null;
 let selectedName = '';
-let accumulatedDelta = 0; // 누적 회전 — 정준 표기 0 | 90 | 180 | 270
+let accumulatedDelta = 0;  // 누적 회전 — 정준 표기 0 | 90 | 180 | 270
+let fileNameEdited = false; // 사용자가 파일 이름을 직접 수정했으면 자동 갱신을 멈춘다
 
 // 회전 버튼은 파일이 있으면 활성, 다운로드 버튼은 누적 회전이 0이 아닐 때만 활성
 // (0이면 내려받을 변화가 없다).
 function updateControls() {
   for (const button of rotateButtons) button.disabled = !selectedBytes;
+  nameInput.disabled = !selectedBytes;
   downloadButton.disabled = !selectedBytes || accumulatedDelta === 0;
 }
 
 function disableControls() {
   for (const button of rotateButtons) button.disabled = true;
+  nameInput.disabled = true;
   downloadButton.disabled = true;
 }
+
+// 회전 전(누적 회전 0)에는 비워 placeholder를 보이고, 회전하면 기본 이름을 채운다.
+// 사용자가 직접 수정한 뒤에는 건드리지 않는다.
+function syncNameInput() {
+  if (fileNameEdited) return;
+  nameInput.value = (selectedBytes && accumulatedDelta !== 0)
+    ? resultFileName(selectedName, accumulatedDelta)
+    : '';
+}
+
+nameInput.addEventListener('input', () => { fileNameEdited = true; });
 
 // 파일 선택 공통 경로 — <input> 선택과 드래그 앤 드롭이 함께 사용한다.
 async function openFile(file) {
   selectedBytes = null;
   selectedName = '';
   accumulatedDelta = 0;
+  fileNameEdited = false;
+  syncNameInput();
   updateControls();
   clearPreview();
   status.textContent = '파일 여는 중…';
@@ -486,6 +525,7 @@ for (const button of rotateButtons) {
   button.addEventListener('click', () => {
     if (!selectedBytes) return;
     accumulatedDelta = nextRotation(accumulatedDelta, Number(button.dataset.delta));
+    syncNameInput();
     updateControls();
     status.textContent = '현재 회전: ' + DELTA_LABELS[accumulatedDelta];
     // 렌더링 실패는 조작을 막지 않는다. 연타 시 renderSeq가 최신 결과만 남긴다.
@@ -498,9 +538,12 @@ downloadButton.addEventListener('click', async () => {
   if (!selectedBytes || accumulatedDelta === 0) return;
   disableControls();
   status.textContent = '회전 중…';
+  // 입력 폼의 이름을 우선하되, 비어 있으면 기본 이름으로. .pdf 확장자는 항상 보장한다.
+  let fileName = nameInput.value.trim() || resultFileName(selectedName, accumulatedDelta);
+  if (!/\.pdf$/i.test(fileName)) fileName += '.pdf';
   try {
     const rotated = await rotateAllPages(selectedBytes, accumulatedDelta, window.PDFLib);
-    downloadBytes(rotated, resultFileName(selectedName, accumulatedDelta));
+    downloadBytes(rotated, fileName);
     status.textContent = '완료 — 결과 파일이 다운로드되었습니다. 계속 회전하거나 다른 파일을 선택할 수 있습니다.';
   } catch (e) {
     // 선택 시 검증을 통과한 파일이므로 드물지만, 실패 시 같은 분류로 안내한다.
