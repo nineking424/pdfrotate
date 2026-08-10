@@ -33,9 +33,10 @@
       try {
         // pdf-lib로 샘플을 만들되, instanceof 렘 충돌을 피해 iframe 렘 안에서 실행한다
         for (let i = 0; i < 100 && !win.PDFLib; i++) await new Promise(r => setTimeout(r, 100));
+        const pageTotal = Number(params.get('pages') || 3);
         const file = await win.eval(`(async () => {
           const doc = await PDFLib.PDFDocument.create();
-          for (let p = 1; p <= 3; p++) {
+          for (let p = 1; p <= ${pageTotal}; p++) {
             const page = doc.addPage([595, 842]);
             page.drawText('Page ' + p, { x: 72, y: 720, size: 48 });
             page.drawRectangle({ x: 40, y: 40, width: 515, height: 762, borderWidth: 2,

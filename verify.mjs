@@ -29,6 +29,7 @@ const C = vm.runInContext(`({
   shortestDeg: typeof shortestDeg === 'function' ? shortestDeg : undefined,
   classifyDrag: typeof classifyDrag === 'function' ? classifyDrag : undefined,
   releaseDetent: typeof releaseDetent === 'function' ? releaseDetent : undefined,
+  rubberband: typeof rubberband === 'function' ? rubberband : undefined,
 })`, context);
 
 // ===== 각도 정규화 · 상대 회전 =====
@@ -149,6 +150,16 @@ if (typeof C.releaseDetent === 'function') {
   check('속도가 경계를 넘긴다: 40° + 양의 플릭 → 90°', C.releaseDetent(40, 200) === 90);
   check('음의 플릭은 되돌린다: 50° - 플릭 → 0°', C.releaseDetent(50, -200) === 0);
   check('강한 플릭은 다음 디텐트를 건너뛸 수 있다', C.releaseDetent(45, 1000) >= 90);
+}
+
+if (typeof C.rubberband === 'function') {
+  section('rubberband — 부드러운 경계 (§9)');
+  check('0 오버슈트 → 0', C.rubberband(0, 800) === 0);
+  check('저항이 진행형: rb(100) < 100', C.rubberband(100, 800) < 100 && C.rubberband(100, 800) > 0);
+  check('점점 덜 따라온다: rb(400)-rb(300) < rb(200)-rb(100)',
+    (C.rubberband(400, 800) - C.rubberband(300, 800)) < (C.rubberband(200, 800) - C.rubberband(100, 800)));
+  check('음의 오버슈트는 대칭', C.rubberband(-100, 800) === -C.rubberband(100, 800));
+  check('상한 존재: rb(1e6) < dimension', C.rubberband(1e6, 800) < 800);
 }
 
 // ===== 정적 HTML 계약 =====

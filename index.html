@@ -51,7 +51,8 @@
       --material-shadow: 0 12px 44px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
       --hairline: rgba(255, 255, 255, 0.12);
 
-      --paper-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 24px 64px rgba(0, 0, 0, 0.6);
+      /* 어두운 무대용 — 흰 종이 가장자리가 헤일로로 뜨지 않게 의도된 헤어라인 링 + 깊은 그림자 */
+    --paper-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 4px 16px rgba(0, 0, 0, 0.5), 0 24px 64px rgba(0, 0, 0, 0.65);
     }
   }
   /* 검증·수동 강제용 — 시스템 설정과 무관하게 테마를 고정할 수 있다 */
@@ -69,7 +70,8 @@
     --material-edge: rgba(255, 255, 255, 0.22);
     --material-shadow: 0 12px 44px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
     --hairline: rgba(255, 255, 255, 0.12);
-    --paper-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 24px 64px rgba(0, 0, 0, 0.6);
+    /* 어두운 무대용 — 흰 종이 가장자리가 헤일로로 뜨지 않게 의도된 헤어라인 링 + 깊은 그림자 */
+    --paper-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 4px 16px rgba(0, 0, 0, 0.5), 0 24px 64px rgba(0, 0, 0, 0.65);
   }
 
   *, *::before, *::after { box-sizing: border-box; }
@@ -256,6 +258,7 @@
     margin-top: 4px;
   }
   #preview-strip {
+    position: relative;   /* page-frame의 offsetLeft 기준을 스트립으로 고정 — JS 스냅과 CSS 스냅의 좌표계 일치 */
     flex: 1;
     display: flex;
     align-items: center;
@@ -266,7 +269,10 @@
        하단 여백은 종이가 툴바에 겹치는 깊이를 그림자+수 px 수준으로 유지한다 */
     padding: 24px max(24px, calc((100% - 980px) / 2)) 48px;
     scroll-snap-type: x proximity;
-    /* 스크롤 엣지 페이드 — 하드 디바이더 대신 (§12) */
+  }
+  /* 스크롤 엣지 페이드 — 하드 디바이더 대신, 실제로 넘치는 콘텐츠가 있을 때만 (§12).
+     항상 걸면 스크롤이 없는 화면에서 카드 가장자리가 부당하게 바랜다 (다크에서 두드러짐) */
+  #preview-strip.can-scroll {
     mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
     -webkit-mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
   }
@@ -461,6 +467,11 @@
     main { padding-left: 16px; padding-right: 16px; }
     /* 2단 툴바 높이만큼 하단을 비워 카드가 캡션과 툴바 사이에 수직 중앙 정렬되게 한다 */
     #preview-strip { gap: 24px; padding: 24px 20px 140px; }
+    /* 카드가 화면 폭을 거의 채우므로 페이드가 카드 가장자리를 잠식하지 않게 폭을 줄인다 */
+    #preview-strip.can-scroll {
+      mask-image: linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent);
+      -webkit-mask-image: linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent);
+    }
     /* 좁은 화면에서는 회전 심벌만 — 텍스트 라벨은 aria-label로 유지 */
     .rotate-button .label { display: none; }
     .rotate-button { padding: 10px 12px; }
@@ -681,6 +692,11 @@ function releaseDetent(angle, velocity, decelerationRate = 0.99) {
   return snapDetent(angle + project(velocity, decelerationRate));
 }
 
+// 러버밴딩 (§9) — 경계를 넘을수록 덜 따라온다. 실물은 멈추기 전에 느려진다.
+function rubberband(overshoot, dimension, constant = 0.55) {
+  return (overshoot * dimension * constant) / (dimension + constant * Math.abs(overshoot));
+}
+
 // ===== CORE-END =====
 
 function downloadBytes(bytes, fileName) {
@@ -845,6 +861,159 @@ function setToolbarShown(shown) {
   }
 }
 
+// ===== 스트립 스크롤 — 마우스 드래그 경로의 감속 관성(§5·§6)과 러버밴딩(§9) =====
+// (터치의 가로 팬은 touch-action: pan-x로 네이티브 스크롤에 맡긴다)
+
+let scrollRaf = 0, scrollTick = 0, scrollVel = 0, scrollTarget = 0, scrollPos = 0;
+let glideMode = 'decay', glideRate = 0.998;
+let rbOffset = 0, rbVel = 0, rbRaf = 0, rbTick = 0;
+
+function stripMaxScroll() {
+  return Math.max(0, previewStrip.scrollWidth - previewStrip.clientWidth);
+}
+
+// 투사 지점에서 가장 가까운 "카드 중앙 정렬" 스크롤 위치 (§6 — 투사 후 스냅 지점 선택)
+function nearestCardSnap(projected) {
+  const max = stripMaxScroll();
+  const center = previewStrip.clientWidth / 2;
+  let best = Math.min(Math.max(projected, 0), max);
+  let bestDist = Infinity;
+  for (const f of frames) {
+    const pos = Math.min(Math.max(f.el.offsetLeft + f.el.offsetWidth / 2 - center, 0), max);
+    const d = Math.abs(pos - projected);
+    if (d < bestDist) { bestDist = d; best = pos; }
+  }
+  return best;
+}
+
+// 활공은 스프링이 아니라 지수 감쇠다 — 임계 감쇠 스프링을 먼 목표에 걸면
+// 릴리스 직후 손 속도보다 빠르게 재가속하는 이음새 결함(§5)이 원리적으로 생긴다.
+// 감쇠율을 목표 착지에 맞춰 역산하면 속도와 잔여 거리가 함께 0으로 수렴해 이음새가 없다.
+// 상태는 내부 변수로 적분한다 — scrollLeft를 되읽으면 브라우저의
+// 서브픽셀 클램프(실제 최대치 < 계산 최대치)에 걸려 영원히 수렴하지 못한다.
+function scrollGlideFrame(ts) {
+  const dt = Math.min(0.032, Math.max(0.001, (ts - scrollTick) / 1000));
+  scrollTick = ts;
+  if (glideMode === 'spring') {
+    // 목표가 등 뒤에 있는 드문 경우와 꼬리 정렬 — 거리가 작아 재가속이 미미한 스프링
+    const next = springStep({ value: scrollPos, velocity: scrollVel }, scrollTarget, 1.0, 0.3, dt);
+    scrollPos = next.value;
+    scrollVel = next.velocity;
+  } else {
+    scrollVel *= Math.pow(glideRate, dt * 1000);
+    scrollPos += scrollVel * dt;
+    const max = stripMaxScroll();
+    if (glideMode === 'boundary' && (scrollPos <= 0 || scrollPos >= max)) {
+      // 경계 도달 — 잔여 속도를 러버밴드 바운스로 넘긴다 (§9, 드래그 경계와 같은 행동)
+      const bound = scrollPos <= 0 ? 0 : max;
+      scrollPos = bound;
+      previewStrip.scrollLeft = bound;
+      scrollRaf = 0;
+      const impact = scrollVel;
+      scrollVel = 0;
+      rbOffset = 0;
+      startRubberbandBounce(impact);
+      return;
+    }
+  }
+  previewStrip.scrollLeft = scrollPos;
+  if (Math.abs(scrollVel) < 15 && Math.abs(scrollPos - scrollTarget) < 1) {
+    previewStrip.scrollLeft = scrollTarget;
+    scrollRaf = 0; scrollVel = 0;
+    previewStrip.style.scrollSnapType = '';
+    return;
+  }
+  // 지수 감쇠는 원리상 끝이 없다 — 꼬리(잔여 수십 px)는 스프링으로 넘겨
+  // 인터랙션에 명확한 끝을 만든다 (지각 불가능한 속도로 2초씩 기어가지 않게)
+  if (Math.abs(scrollVel) < 50 && glideMode !== 'spring') {
+    glideMode = 'spring';
+  }
+  scrollRaf = requestAnimationFrame(scrollGlideFrame);
+}
+
+// 릴리스 속도를 투사해(§6) 목표를 고르고, 그 목표에 정확히 착지하는 감쇠율을 역산한다.
+function startScrollGlide(releaseVx) {
+  scrollPos = previewStrip.scrollLeft;
+  scrollVel = -releaseVx;               // 콘텐츠 좌표계 속도 (px/s)
+  const projected = scrollPos + project(scrollVel, 0.998);
+  const max = stripMaxScroll();
+  if (projected < -8 || projected > max + 8) {
+    // 관성이 경계를 넘친다 — 자연 감쇠로 경계까지 간 뒤 잔여 속도로 바운스
+    glideMode = 'boundary';
+    glideRate = 0.998;
+    scrollTarget = projected < 0 ? 0 : max;
+  } else {
+    scrollTarget = nearestCardSnap(projected);
+    const dist = scrollTarget - scrollPos;
+    if (dist === 0 || Math.sign(dist) !== Math.sign(scrollVel)) {
+      glideMode = 'spring';
+    } else {
+      // dist = (v/1000)·d/(1−d) 를 d에 대해 풀면 d = k/(1+k), k = 1000·dist/v
+      glideMode = 'decay';
+      const k = 1000 * Math.abs(dist) / Math.abs(scrollVel);
+      glideRate = Math.min(0.9992, Math.max(0.995, k / (1 + k)));
+    }
+  }
+  if (REDUCED_MOTION.matches) {
+    previewStrip.scrollLeft = scrollTarget;
+    previewStrip.style.scrollSnapType = '';
+    scrollVel = 0;
+    return;
+  }
+  if (!scrollRaf) { scrollTick = performance.now(); scrollRaf = requestAnimationFrame(scrollGlideFrame); }
+}
+
+function applyRubberband() {
+  previewStrip.style.transform = rbOffset ? 'translateX(' + rbOffset.toFixed(1) + 'px)' : '';
+}
+
+function rbFrame(ts) {
+  const dt = Math.min(0.032, Math.max(0.001, (ts - rbTick) / 1000));
+  rbTick = ts;
+  const next = springStep({ value: rbOffset, velocity: rbVel }, 0, 1.0, 0.35, dt);
+  rbOffset = next.value; rbVel = next.velocity;
+  if (Math.abs(rbOffset) < 0.5 && Math.abs(rbVel) < 5) {
+    rbOffset = 0; rbVel = 0; rbRaf = 0;
+    previewStrip.style.scrollSnapType = '';
+  }
+  applyRubberband();
+  if (rbRaf) rbRaf = requestAnimationFrame(rbFrame);
+}
+
+function startRubberbandReturn(releaseVx) {
+  rbVel = -releaseVx;
+  if (REDUCED_MOTION.matches) {
+    rbOffset = 0; rbVel = 0; applyRubberband();
+    previewStrip.style.scrollSnapType = '';
+    return;
+  }
+  if (!rbRaf) { rbTick = performance.now(); rbRaf = requestAnimationFrame(rbFrame); }
+}
+
+// 관성이 경계에 부딪힐 때 — 잔여 속도만큼 살짝 넘었다 돌아온다 (§9).
+// 임계 감쇠 스프링에 초기 속도를 주면 v·t·e^(−ωt) 형태의 단일 바운스가 나온다.
+function startRubberbandBounce(impactScrollVel) {
+  rbOffset = 0;
+  rbVel = -impactScrollVel;
+  if (REDUCED_MOTION.matches) {
+    rbVel = 0; applyRubberband();
+    previewStrip.style.scrollSnapType = '';
+    return;
+  }
+  if (!rbRaf) { rbTick = performance.now(); rbRaf = requestAnimationFrame(rbFrame); }
+}
+
+function cancelScrollAnimations() {
+  if (scrollRaf) { cancelAnimationFrame(scrollRaf); scrollRaf = 0; scrollVel = 0; }
+  if (rbRaf) { cancelAnimationFrame(rbRaf); rbRaf = 0; }
+}
+
+// 넘치는 콘텐츠가 있을 때만 엣지 페이드 어포던스를 건다 (§12)
+function updateScrollAffordance() {
+  previewStrip.classList.toggle('can-scroll',
+    previewStrip.scrollWidth > previewStrip.clientWidth + 1);
+}
+
 // ===== 원호 드래그 — 페이지를 잡아 비틀어 회전한다 (§2·§3·§5·§6·§10) =====
 
 // 제스처와 버튼이 합류하는 단일 상태 경로 — 목표 디텐트 확정과 UI 동기화.
@@ -867,6 +1036,8 @@ function pointerAngle(e, d) {
 previewStrip.addEventListener('pointerdown', (e) => {
   if (!frames.length || !selectedBytes) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
+  // 글라이드·러버밴드 복귀 중에도 잡는 순간 현재 위치에서 이어받는다 (§3)
+  cancelScrollAnimations();
   const canvas = e.target && e.target.closest ? e.target.closest('.preview-canvas') : null;
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
@@ -897,6 +1068,9 @@ previewStrip.addEventListener('pointermove', (e) => {
     if (mode === 'rotate') {
       drag.refAngle = pointerAngle(e, drag);
       document.documentElement.classList.add('rotating-drag');
+    } else {
+      // 1:1 제어와 CSS 스냅이 싸우지 않게, 드래그·관성 동안 스냅을 잠근다
+      previewStrip.style.scrollSnapType = 'none';
     }
   }
   if (drag.mode === 'rotate') {
@@ -911,8 +1085,14 @@ previewStrip.addEventListener('pointermove', (e) => {
     angleBadge.textContent = (Math.round(normalizeAngle(displayAngle)) % 360) + '°';
     applyRotationTransforms();
   } else {
-    // 마우스 스크롤 드래그 — 1:1, 릴리스 시 모멘텀 투사
-    previewStrip.scrollLeft = drag.startScrollLeft - (e.clientX - drag.startX);
+    // 마우스 스크롤 드래그 — 1:1, 경계 밖은 러버밴딩(§9), 릴리스 시 모멘텀 투사
+    const desired = drag.startScrollLeft - (e.clientX - drag.startX);
+    const max = stripMaxScroll();
+    const clamped = Math.min(Math.max(desired, 0), max);
+    previewStrip.scrollLeft = clamped;
+    const overshoot = desired - clamped;
+    rbOffset = overshoot ? -rubberband(overshoot, previewStrip.clientWidth) : 0;
+    applyRubberband();
     const dt = e.timeStamp - drag.lastT;
     if (dt > 0) drag.scrollVx = (e.clientX - drag.lastX) / dt * 1000;
     drag.lastX = e.clientX; drag.lastT = e.timeStamp;
@@ -933,8 +1113,15 @@ function endDrag(e, cancelled) {
       if (last.t > first.t) v = (last.a - first.a) / (last.t - first.t) * 1000;
     }
     commitRotationTarget(releaseDetent(displayAngle, v), v);
-  } else if (d.mode === 'scroll' && !cancelled && Math.abs(d.scrollVx) > 50) {
-    previewStrip.scrollBy({ left: -project(d.scrollVx), behavior: 'smooth' });
+  } else if (d.mode === 'scroll') {
+    if (rbOffset !== 0) {
+      // 경계 밖에서 놓음 — 스프링으로 제자리 복귀 (§9)
+      startRubberbandReturn(cancelled ? 0 : d.scrollVx);
+    } else if (!cancelled && Math.abs(d.scrollVx) > 50) {
+      startScrollGlide(d.scrollVx);
+    } else {
+      previewStrip.style.scrollSnapType = '';
+    }
   }
 }
 previewStrip.addEventListener('pointerup', (e) => endDrag(e, false));
@@ -945,6 +1132,10 @@ function clearPreview() {
   previewStrip.replaceChildren();
   previewPages = [];
   frames = [];
+  cancelScrollAnimations();
+  rbOffset = 0; rbVel = 0;
+  previewStrip.style.transform = '';
+  previewStrip.style.scrollSnapType = '';
   if (rotationRaf) { cancelAnimationFrame(rotationRaf); rotationRaf = 0; }
   displayAngle = 0; displayVelocity = 0;
   springTargetAngle = 0; crispAngle = 0;
@@ -1016,6 +1207,7 @@ async function renderPreviews(deltaAngle, fadeSwap) {
     displayVelocity = 0;
   }
   applyRotationTransforms();
+  updateScrollAffordance();
   previewArea.hidden = false;
   // 선명화 크로스페이드 (§14 — 급격한 밝기 점프 회피): 안착 스왑에서만,
   // 직전 화면의 캔버스를 새 프레임 위에 겹쳐 150ms 페이드아웃한다.
