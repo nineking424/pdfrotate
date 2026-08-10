@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; }
+  iframe { display: block; width: 100vw; height: 100vh; border: none; }
+  #err {
+    position: fixed; top: 0; left: 0; z-index: 999;
+    background: #c00; color: #fff; font: 12px monospace; padding: 4px 8px;
+    display: none; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+<div id="err"></div>
+<iframe id="app" src="index.html"></iframe>
+<script>
+  // 쿼리: ?theme=dark&mode=viewer&rotate=90
+  const params = new URLSearchParams(location.search);
+  const errBox = document.getElementById('err');
+  function showErr(msg) {
+    errBox.style.display = 'block';
+    errBox.textContent += msg + '\n';
+  }
+  const frame = document.getElementById('app');
+  frame.addEventListener('load', async () => {
+    const win = frame.contentWindow;
+    const doc = win.document;
+    win.onerror = (msg) => showErr('iframe error: ' + msg);
+    if (params.get('theme')) doc.documentElement.dataset.theme = params.get('theme');
+    if (params.get('mode') === 'viewer') {
+      try {
+        // pdf-lib로 샘플을 만들되, instanceof 렘 충돌을 피해 iframe 렘 안에서 실행한다
+        for (let i = 0; i < 100 && !win.PDFLib; i++) await new Promise(r => setTimeout(r, 100));
+        const file = await win.eval(`(async () => {
+          const doc = await PDFLib.PDFDocument.create();
+          for (let p = 1; p <= 3; p++) {
+            const page = doc.addPage([595, 842]);
+            page.drawText('Page ' + p, { x: 72, y: 720, size: 48 });
+            page.drawRectangle({ x: 40, y: 40, width: 515, height: 762, borderWidth: 2,
+              borderColor: PDFLib.rgb(0.6, 0.6, 0.65) });
+          }
+          const buf = await doc.save();
+          return new File([buf], 'sample-3pages.pdf', { type: 'application/pdf' });
+        })()`);
+        // 페이지 전역 openFile을 직접 호출 — input change와 동일한 공통 경로
+        await win.openFile(file);
+        // 미리보기 렌더링 완료 대기
+        for (let i = 0; i < 100; i++) {
+          if (!doc.getElementById('preview-area').hidden &&
+              doc.querySelectorAll('.preview-canvas').length > 0) break;
+          await new Promise(r => setTimeout(r, 100));
+        }
+        const rotate = Number(params.get('rotate') || 0);
+        if (rotate) {
+          const btn = doc.querySelector('.rotate-button[data-delta="' + rotate + '"]');
+          if (btn) btn.click();
+          // 세로(842×595 → 가로) 페이지가 나타날 때까지 대기 — 회전 반영 확인
+          for (let i = 0; i < 100; i++) {
+            const c = doc.querySelector('.preview-canvas');
+            if (c && c.width > c.height) break;
+            await new Promise(r => setTimeout(r, 100));
+          }
+        }
+        document.title = 'ready';
+      } catch (e) {
+        showErr('harness: ' + (e && e.message));
+      }
+    } else {
+      document.title = 'ready';
+    }
+  });
+</script>
+</body>
+</html>
