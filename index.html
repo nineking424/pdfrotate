@@ -2,20 +2,74 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>pdfrotate</title>
+<meta name="theme-color" content="#f5f6fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)">
 <style>
-  /* ===== DESIGN.md 토큰 (인라인 hex 금지 — 토큰 참조만 사용) ===== */
+  /* ===== 디자인 토큰 — apple-design.md 기반 (라이트가 기본, 다크는 미디어쿼리+data-theme 이중 정의) ===== */
   :root {
-    --colors-primary: #0066cc;        /* Action Blue — 유일한 액센트 */
-    --colors-primary-focus: #0071e3;  /* Focus Blue — 키보드 포커스 링 전용 */
-    --colors-canvas-parchment: #f5f5f7;
-    --colors-ink: #1d1d1f;            /* 모든 텍스트 — 오류 메시지도 이 톤 유지 */
-    --colors-on-primary: #ffffff;
-    --rounded-pill: 9999px;
-    --spacing-sm: 12px;
-    --spacing-lg: 24px;
-    --spacing-xxl: 48px;
+    color-scheme: light dark;
+
+    --accent: #0071e3;
+    --on-accent: #ffffff;
+    --accent-tint: rgba(0, 113, 227, 0.10);
+
+    --ink: #1d1d1f;
+    --ink-secondary: rgba(29, 29, 31, 0.62);
+    --ink-quiet: rgba(29, 29, 31, 0.06);
+
+    --stage: #f5f6fa;
+    --stage-gradient:
+      radial-gradient(1100px 520px at 50% -8%, rgba(0, 113, 227, 0.07), transparent 62%),
+      linear-gradient(180deg, #fbfbfd 0%, #f0f1f6 100%);
+
+    --material: rgba(255, 255, 255, 0.55);
+    --material-edge: rgba(255, 255, 255, 0.75);      /* 재질 위쪽 모서리에 맺히는 빛 */
+    --material-shadow: 0 12px 40px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.07);
+    --hairline: rgba(0, 0, 0, 0.08);
+
+    --paper-shadow: 0 2px 10px rgba(0, 0, 0, 0.10), 0 18px 50px rgba(0, 0, 0, 0.20);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --accent: #0a84ff;
+      --accent-tint: rgba(10, 132, 255, 0.16);
+
+      --ink: #f5f5f7;
+      --ink-secondary: rgba(245, 245, 247, 0.62);
+      --ink-quiet: rgba(245, 245, 247, 0.09);
+
+      --stage: #0a0a0c;
+      --stage-gradient:
+        radial-gradient(1100px 520px at 50% -8%, rgba(10, 132, 255, 0.08), transparent 62%),
+        linear-gradient(180deg, #131316 0%, #09090b 100%);
+
+      --material: rgba(28, 28, 32, 0.62);
+      --material-edge: rgba(255, 255, 255, 0.14);
+      --material-shadow: 0 12px 44px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+      --hairline: rgba(255, 255, 255, 0.12);
+
+      --paper-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 24px 64px rgba(0, 0, 0, 0.6);
+    }
+  }
+  /* 검증·수동 강제용 — 시스템 설정과 무관하게 테마를 고정할 수 있다 */
+  :root[data-theme="dark"] {
+    --accent: #0a84ff;
+    --accent-tint: rgba(10, 132, 255, 0.16);
+    --ink: #f5f5f7;
+    --ink-secondary: rgba(245, 245, 247, 0.62);
+    --ink-quiet: rgba(245, 245, 247, 0.09);
+    --stage: #0a0a0c;
+    --stage-gradient:
+      radial-gradient(1100px 520px at 50% -8%, rgba(10, 132, 255, 0.08), transparent 62%),
+      linear-gradient(180deg, #131316 0%, #09090b 100%);
+    --material: rgba(30, 30, 36, 0.5);
+    --material-edge: rgba(255, 255, 255, 0.22);
+    --material-shadow: 0 12px 44px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+    --hairline: rgba(255, 255, 255, 0.12);
+    --paper-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 24px 64px rgba(0, 0, 0, 0.6);
   }
 
   *, *::before, *::after { box-sizing: border-box; }
@@ -25,183 +79,370 @@
   /* display: flex 등이 UA의 [hidden] 규칙을 이기지 못하게 한다 — 단계적 노출의 전제 */
   [hidden] { display: none !important; }
 
-  /* 파치먼트 단일 화면, 중앙 정렬 스택. 본문 17px/400/1.47 + 음수 자간 */
+  /* 무대 — 정적 그라데이션(움직이는 배경 금지), 본문 17px/1.47 + 사이즈별 음수 자간 */
   body {
-    background: var(--colors-canvas-parchment);
-    color: var(--colors-ink);
+    background: var(--stage-gradient) var(--stage);
+    background-attachment: fixed;
+    color: var(--ink);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 17px;
     font-weight: 400;
     line-height: 1.47;
-    letter-spacing: -0.374px;
+    letter-spacing: -0.022em;
+    word-break: keep-all;      /* 한국어 어절 내부 줄바꿈 금지 */
     min-height: 100vh;
-    min-height: 100dvh; /* iOS Safari — 주소창 수축 시 실제 보이는 높이 기준 (구형 브라우저는 위 100vh 사용) */
-    display: flex;
-    padding: var(--spacing-xxl) var(--spacing-lg);
+    min-height: 100dvh;
   }
 
+  /* 콘텐츠는 툴바 아래로 지나간다 (§12) — 하단 띠를 예약하지 않는다 */
   main {
-    margin: auto;             /* 안전한 수직·수평 중앙 정렬 */
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 24px 0;
+  }
+
+  /* ===== 환영 화면 (파일 선택 전) — 중앙 스택 ===== */
+  #welcome {
+    margin: auto;
     width: 100%;
-    max-width: 640px;
+    max-width: 560px;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: var(--spacing-lg);
+    gap: 12px;
   }
 
-  /* 헤드라인 — 웨이트 600 + 음수 자간 ("Apple tight") */
+  /* 디스플레이 타이포 — 커질수록 자간은 음수로, 행간은 조이게 (§15) */
   h1 {
     margin: 0;
-    font-size: 40px;
-    font-weight: 600;
-    line-height: 1.1;
-    letter-spacing: -0.28px;
+    font-size: clamp(40px, 7vw, 56px);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-optical-sizing: auto;
   }
 
   p { margin: 0; }
 
-  /* 안내 문구 — 캡션 14px, ink 톤 (제2 색 금지) */
+  .tagline { font-size: 19px; letter-spacing: -0.022em; color: var(--ink); text-wrap: balance; }
+
   .notice {
     font-size: 14px;
     line-height: 1.43;
-    letter-spacing: -0.224px;
+    letter-spacing: -0.01em;
+    color: var(--ink-secondary);
   }
 
-  /* 필 버튼 공통 — 터치 타깃 44px 이상, 그림자 없음 */
-  .pill {
+  /* ===== 버튼 공통 ===== */
+  button {
+    font: inherit;
+    letter-spacing: -0.022em;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    border: none;
+    background: none;
+    color: inherit;
+    padding: 0;
+  }
+  /* 주의: 배경·색은 리셋하지 않는다 — .primary-cta 등의 채움이 특이도에서 밀리면 안 된다 */
+  label[for="file-input"] {
+    font: inherit;
+    letter-spacing: -0.022em;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  body:has(#file-input:focus-visible) label[for="file-input"] {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* 주 CTA — 환영 화면의 유일한 액션. 눌림 피드백은 pointer-down 즉시 (§1) */
+  .primary-cta {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 44px;
-    min-width: 44px;
-    padding: 11px 22px;
-    border-radius: var(--rounded-pill);
-    font: inherit;
-    letter-spacing: -0.374px;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
+    min-height: 50px;
+    padding: 13px 30px;
+    margin-top: 12px;
+    border-radius: 9999px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 17px;
+    font-weight: 600;
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 25%, transparent);
+    transition: transform 120ms ease-out, box-shadow 180ms ease-out;
   }
-  .pill:active:not(:disabled) { transform: scale(0.95); }  /* 시스템 공통 눌림 상태 */
-  .pill:focus-visible {
-    outline: 2px solid var(--colors-primary-focus);
-    outline-offset: 2px;
+  .primary-cta:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 32%, transparent);
   }
+  .primary-cta:active { transform: scale(0.97); transition-duration: 60ms; }
 
-  /* 파일 선택·회전 버튼 — 고스트 필 (secondary pill: 투명 배경 + Action Blue 테두리) */
-  .file-label,
-  .rotate-button {
-    background: transparent;
-    color: var(--colors-primary);
-    border: 1px solid var(--colors-primary);
+  /* 고스트 버튼 — 상단 바의 "다른 파일 선택" */
+  .ghost-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    color: var(--accent);
+    font-size: 15px;
+    font-weight: 500;
+    transition: background-color 120ms ease-out, transform 120ms ease-out;
   }
-
-  /* 파일 선택 전에는 파일 선택이 유일한 주 액션 — Action Blue 채움으로 승격 */
-  .file-label.primary {
-    background: var(--colors-primary);
-    color: var(--colors-on-primary);
-    border-color: var(--colors-primary);
-  }
+  .ghost-button:hover { background: var(--accent-tint); }
+  .ghost-button:active { transform: scale(0.96); }
 
   /* 드래그 앤 드롭 안내 — 포인터가 있는 데스크톱 환경에서만 보인다 */
   #drop-hint { display: none; }
   @media (hover: hover) and (pointer: fine) {
     #drop-hint { display: block; }
   }
+  body.dropping label[for="file-input"] {
+    outline: 2px dashed var(--accent);
+    outline-offset: 4px;
+  }
 
-  /* 회전 버튼 — 아이콘 + 텍스트 필 버튼 */
-  #rotate-buttons {
+  /* ===== 상단 바 (뷰어 모드) — 투명, 콘텐츠 위 가벼운 안내층 ===== */
+  #top-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 8px 0;
+  }
+  .wordmark {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  #file-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    color: var(--ink-secondary);
+    white-space: nowrap;
+  }
+  /* 파일명만 말줄임 — 페이지 수 단위는 항상 보존한다 */
+  .file-meta-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-meta-count { flex: none; }
+
+  /* ===== 미리보기 — 무대의 주인공. 종이는 깊이 있는 그림자로 떠 있다 ===== */
+  figure { margin: 0; }
+  #preview-area {
+    width: 100%;
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-top: 4px;
+  }
+  #preview-strip {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    max-width: 100%;
+    overflow-x: auto;
+    /* 좌우 시작점을 상단 바의 980px 그리드 라인에 맞춘다.
+       하단 여백은 종이가 툴바에 겹치는 깊이를 그림자+수 px 수준으로 유지한다 */
+    padding: 24px max(24px, calc((100% - 980px) / 2)) 48px;
+    scroll-snap-type: x proximity;
+    /* 스크롤 엣지 페이드 — 하드 디바이더 대신 (§12) */
+    mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
+  }
+  /* 페이지 프레임 — 회전 스프링 중 캔버스의 시각적 상자를 받아주는 레이아웃 상자.
+     프레임 폭은 rAF에서 회전각에 따라 연속 갱신된다 (모션 중에도 스트립이 자연스럽게 밀림) */
+  .page-frame {
+    position: relative;          /* 안착 스왑 크로스페이드의 오버레이 기준 */
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    scroll-snap-align: center;
+  }
+  /* 직전 화면의 캔버스 — 새 크리스프 렌더 위에서 150ms 페이드아웃 */
+  .preview-canvas.stale {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    opacity: 1;
+    transition: opacity 150ms ease-out;
+    pointer-events: none;
+  }
+  /* reduced-motion의 회전 대체 — 하드 컷 대신 짧은 베일 (§14) */
+  #preview-strip { transition: opacity 120ms ease; }
+  #preview-strip.rm-fade { opacity: 0.4; }
+  /* 내용이 컨테이너보다 좁으면 중앙 정렬, 넘치면 정상 스크롤 */
+  .page-frame:first-child { margin-left: auto; }
+  .page-frame:last-child { margin-right: auto; }
+  .preview-canvas {
+    flex: none;
+    border-radius: 4px;
+    box-shadow: var(--paper-shadow);
+    will-change: transform;
+    /* 원호 드래그(§2) — 세로 원호는 우리가 받고, 가로 팬은 네이티브 스크롤에 맡긴다 */
+    cursor: grab;
+    touch-action: pan-x;
+  }
+  html.rotating-drag, html.rotating-drag .preview-canvas { cursor: grabbing; }
+  #preview-strip { user-select: none; -webkit-user-select: none; }
+
+  /* 단계적 노출 — 나타나는 층은 짧은 페이드로 도착한다 (모션은 §14에서 대체) */
+  #top-bar, #preview-area, #welcome { opacity: 1; transition: opacity 240ms ease-out; }
+  @starting-style {
+    #top-bar:not([hidden]), #preview-area:not([hidden]), #welcome:not([hidden]) { opacity: 0; }
+  }
+
+  figcaption {
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    color: var(--ink-secondary);
+  }
+
+  /* 상태 문구 — 상단 바 아래 안내층, 레이아웃 점프 방지 */
+  #status {
+    min-height: 25px;
+    text-align: center;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    color: var(--ink-secondary);
+  }
+
+  /* ===== 하단 플로팅 툴바 — 반투명 재질, 콘텐츠가 아래로 지나간다 (§12) ===== */
+  #toolbar {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    z-index: 10;
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--spacing-sm);
-  }
-  .rotate-button svg {
-    width: 20px;
-    height: 20px;
-    display: block;
-    flex: none;
-  }
-  #file-input:focus-visible + .file-label {
-    outline: 2px solid var(--colors-primary-focus);
-    outline-offset: 2px;
-  }
-  /* 드래그 앤 드롭(데스크톱 보조 경로) 중 드롭 대상 표시 */
-  body.dropping .file-label {
-    outline: 2px solid var(--colors-primary-focus);
-    outline-offset: 2px;
-  }
-
-  /* 파일 이름 + 다운로드 아이콘 버튼 한 줄 배치 */
-  #name-row {
-    display: flex;
-    justify-content: center;
     align-items: center;
-    gap: var(--spacing-sm);
-    width: 100%;
+    justify-content: center;
+    gap: 4px 8px;
+    width: max-content;
+    max-width: min(calc(100vw - 24px), 720px);
+    padding: 10px 12px;
+    border-radius: 26px;
+    background: var(--material);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(28px) saturate(180%);
+    border: 0.5px solid var(--hairline);
+    /* 위 모서리에 맺히는 빛 — 재질의 두께감 (§12) */
+    box-shadow: var(--material-shadow), inset 0 1px 0 var(--material-edge);
+  }
+  .tool-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
-  /* 다운로드 버튼 — 단 하나의 주 액션, Action Blue 아이콘+텍스트 필 버튼 */
-  .download-button {
-    background: var(--colors-primary);
-    color: var(--colors-on-primary);
-    border: none;
-    flex: none;
+  /* 회전 버튼 — 재질 위의 틴트 심벌 버튼 */
+  .rotate-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    color: var(--accent);
+    font-size: 15px;
+    font-weight: 500;
+    transition: background-color 120ms ease-out, transform 120ms ease-out;
   }
-  .download-button svg {
-    width: 20px;
-    height: 20px;
-    display: block;
-    flex: none;
-  }
+  .rotate-button:hover:not(:disabled) { background: var(--accent-tint); }
+  .rotate-button:active:not(:disabled) { transform: scale(0.94); transition-duration: 60ms; }
+  .rotate-button svg { width: 19px; height: 19px; display: block; flex: none; }
 
-  /* 현재 회전 각도 배지 — 조작부 한가운데에서 상태를 보여준다 */
+  /* 현재 회전 각도 배지 — 조작부 한가운데의 상태 표시 */
   #angle-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 52px;
-    min-height: 44px;
+    min-width: 54px;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 10px;
+    background: var(--ink-quiet);
     font-size: 14px;
     font-weight: 600;
-    letter-spacing: -0.224px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
   }
-  .rotate-button:disabled,
+
+  .toolbar-divider {
+    width: 0.5px;
+    align-self: stretch;
+    margin: 6px 4px;
+    background: var(--hairline);
+  }
+
+  /* 파일 이름 입력 — 재질 위의 조용한 인셋 필드 */
+  .name-input {
+    width: clamp(150px, 24vw, 250px);
+    min-height: 44px;
+    padding: 10px 16px;
+    border: 0.5px solid transparent;
+    border-radius: 14px;
+    background: var(--ink-quiet);
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .name-input::placeholder { color: var(--ink-secondary); }
+  .name-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+
+  /* 다운로드 — 화면 유일의 채움 주 액션 */
+  .download-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 44px;
+    padding: 10px 20px;
+    border-radius: 9999px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 15px;
+    font-weight: 600;
+    transition: transform 120ms ease-out, filter 120ms ease-out;
+  }
+  .download-button:hover:not(:disabled) { filter: brightness(1.08); }
+  .download-button:active:not(:disabled) { transform: scale(0.96); transition-duration: 60ms; }
+  .download-button svg { width: 18px; height: 18px; display: block; flex: none; }
+
+  .rotate-button:disabled { opacity: 0.35; cursor: default; }
+  /* 비활성 다운로드 — 채도만 걷고 글자 대비는 유지한다 */
   .download-button:disabled {
-    opacity: 0.4;
+    background: var(--ink-quiet);
+    color: var(--ink-secondary);
     cursor: default;
   }
-
-  #controls {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--spacing-sm);
-    width: 100%;
-  }
-
-  /* 파일 이름 입력 — DESIGN.md search-input 문법 (필 형태, 흰 배경, 헤어라인 테두리) */
-  .name-input {
-    flex: 0 1 360px;
-    min-width: 0;
-    max-width: 360px;
-    min-height: 44px;
-    padding: 12px 20px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: var(--rounded-pill);
-    background: #ffffff;             /* {colors.canvas} */
-    color: var(--colors-ink);
-    font: inherit;
-    letter-spacing: -0.374px;
-    text-align: center;
-  }
-  .name-input:focus-visible {
-    outline: 2px solid var(--colors-primary-focus);
-    outline-offset: 2px;
-  }
-  .name-input:disabled { opacity: 0.4; }
+  .name-input:disabled { opacity: 0.35; }
 
   .visually-hidden {
     position: absolute;
@@ -215,114 +456,95 @@
     white-space: nowrap;
   }
 
-  figure { margin: 0; }
-  figcaption {
-    margin-top: var(--spacing-sm);
-    font-size: 14px;
-    line-height: 1.43;
-    letter-spacing: -0.224px;
-  }
-
-  /* 미리보기 썸네일(최대 10페이지) — 가로 슬라이드 스트립.
-     썸네일은 시스템에서 유일하게 그림자가 허용되는 요소 (DESIGN.md) */
-  #preview-area { width: 100%; min-width: 0; }
-  #preview-strip {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--spacing-lg);
-    max-width: 100%;
-    overflow-x: auto;
-    padding: var(--spacing-lg); /* 그림자가 스크롤 컨테이너에 잘리지 않게 여유를 둔다 */
-    scroll-snap-type: x proximity;
-  }
-  /* 세로폭 고정 — 회전으로 페이지가 가로↔세로로 바뀌어도 영역 높이가 출렁이지 않는다.
-     넘치는 가로폭은 스트립의 가로 스크롤이 받아준다. */
-  .preview-canvas {
-    flex: none;
-    scroll-snap-align: center;
-    height: 240px;
-    width: auto;
-    box-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px;
-  }
-  /* 내용이 컨테이너보다 좁으면 중앙 정렬, 넘치면 정상 스크롤
-     (justify-content: center는 넘칠 때 앞쪽이 잘려 스크롤 불가가 된다) */
-  .preview-canvas:first-child { margin-left: auto; }
-  .preview-canvas:last-child { margin-right: auto; }
-
-  /* 상태 문구 — ink 톤 유지, 레이아웃 점프 방지 */
-  #status { min-height: 25px; }
-
-  /* 반응형 — 폰(≤640px): 헤드라인 34px, 여백 축소 */
+  /* ===== 반응형 ===== */
   @media (max-width: 640px) {
-    body { padding: var(--spacing-lg); }
-    h1 { font-size: 34px; }
+    main { padding-left: 16px; padding-right: 16px; }
+    /* 2단 툴바 높이만큼 하단을 비워 카드가 캡션과 툴바 사이에 수직 중앙 정렬되게 한다 */
+    #preview-strip { gap: 24px; padding: 24px 20px 140px; }
+    /* 좁은 화면에서는 회전 심벌만 — 텍스트 라벨은 aria-label로 유지 */
+    .rotate-button .label { display: none; }
+    .rotate-button { padding: 10px 12px; }
+    .toolbar-divider { display: none; }
+    #toolbar { row-gap: 8px; }
+    .tool-group.export-group { flex: 1 1 100%; justify-content: center; }
+    .name-input { flex: 1 1 auto; width: auto; min-width: 0; }
   }
 
-  /* 좁은 화면(≤480px): 세로 배치 —
-     회전 줄은 [버튼|배지|버튼] 한 줄 유지(버튼이 남는 폭을 나눠 가짐),
-     파일 이름과 다운로드는 각각 전체 폭으로 쌓는다 */
-  @media (max-width: 480px) {
-    #controls { flex-direction: column; align-items: stretch; }
-    .file-label { width: 100%; }
-    #rotate-buttons { flex-wrap: nowrap; }
-    .rotate-button { flex: 1; min-width: 0; padding: 11px 8px; }
-    #name-row { flex-wrap: wrap; }
-    .name-input { flex: 1 1 100%; max-width: none; }
-    .download-button { flex: 1 1 100%; }
+  /* ===== 접근성 재질·모션 대체 (§14) ===== */
+  @media (prefers-reduced-transparency: reduce) {
+    #toolbar {
+      background: var(--stage);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
   }
-
-  /* 작은 폰(≤419px): 헤드라인 28px */
-  @media (max-width: 419px) {
-    h1 { font-size: 28px; }
+  @media (prefers-contrast: more) {
+    #toolbar { background: var(--stage); border-color: var(--ink); }
+    .notice, #file-meta, figcaption, #status { color: var(--ink); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* 미리보기 스트립의 베일 페이드는 §14가 요구하는 "비전정기관적 등가물"이라 남긴다 */
+    *:not(#preview-strip) { transition-duration: 0.01ms !important; }
   }
 </style>
 </head>
 <body>
+<input type="file" id="file-input" class="visually-hidden" accept="application/pdf,.pdf">
 <main>
-  <h1>pdfrotate</h1>
-  <p>PDF의 모든 페이지를 한 번에 회전해 내려받을 수 있습니다.</p>
-  <p class="notice">파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
-  <input type="file" id="file-input" class="visually-hidden" accept="application/pdf,.pdf">
-  <label for="file-input" id="file-label" class="pill file-label primary">PDF 파일 선택</label>
-  <p id="drop-hint" class="notice">파일을 이 창에 끌어다 놓아도 됩니다.</p>
-  <p id="file-meta" class="notice" hidden></p>
-  <div id="controls" hidden>
-    <figure id="preview-area" hidden>
-      <div id="preview-strip" role="img" aria-label="미리보기"></div>
-      <figcaption id="preview-caption"></figcaption>
-    </figure>
-    <div id="rotate-buttons">
-      <button type="button" class="pill rotate-button" data-delta="270" disabled>
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="1 4 1 10 7 10"/>
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-        </svg>
-        반시계 90°
-      </button>
-      <span id="angle-badge" aria-label="현재 회전 각도">0°</span>
-      <button type="button" class="pill rotate-button" data-delta="90" disabled>
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="23 4 23 10 17 10"/>
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-        </svg>
-        시계 90°
-      </button>
-    </div>
-    <div id="name-row">
-      <input type="text" id="name-input" class="name-input" aria-label="저장할 파일 이름"
-             placeholder="저장할 파일 이름" autocomplete="off" spellcheck="false" disabled>
-      <button type="button" id="download-button" class="pill download-button" disabled>
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        다운로드
-      </button>
-    </div>
-  </div>
+  <header id="top-bar" hidden>
+    <span class="wordmark">pdfrotate</span>
+    <span id="file-meta"></span>
+    <label for="file-input" class="ghost-button">다른 파일 선택</label>
+  </header>
+
   <p id="status" role="status"></p>
+
+  <section id="welcome">
+    <h1>pdfrotate</h1>
+    <p class="tagline">PDF의 모든 페이지를 한 번에 회전해 내려받을 수 있습니다.</p>
+    <p class="notice">파일은 서버로 전송되지 않으며, 모든 처리는 브라우저 안에서 이루어집니다.</p>
+    <label for="file-input" class="primary-cta">PDF 파일 선택</label>
+    <p id="drop-hint" class="notice">파일을 이 창에 끌어다 놓아도 됩니다.</p>
+  </section>
+
+  <figure id="preview-area" hidden>
+    <figcaption id="preview-caption"></figcaption>
+    <div id="preview-strip" role="img" aria-label="미리보기"></div>
+  </figure>
 </main>
+
+<div id="toolbar" hidden>
+  <div class="tool-group rotate-group">
+    <button type="button" class="rotate-button" data-delta="270" aria-label="반시계 90° 회전" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"/>
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+      </svg>
+      <span class="label">반시계 90°</span>
+    </button>
+    <span id="angle-badge" aria-label="현재 회전 각도">0°</span>
+    <button type="button" class="rotate-button" data-delta="90" aria-label="시계 90° 회전" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      <span class="label">시계 90°</span>
+    </button>
+  </div>
+  <span class="toolbar-divider" aria-hidden="true"></span>
+  <div class="tool-group export-group">
+    <input type="text" id="name-input" class="name-input" aria-label="저장할 파일 이름"
+           placeholder="저장할 파일 이름" autocomplete="off" spellcheck="false" disabled>
+    <button type="button" id="download-button" class="download-button" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      다운로드
+    </button>
+  </div>
+</div>
 
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -401,6 +623,64 @@ const OPEN_FAILURE_MESSAGES = {
   'corrupt': '손상된 PDF라서 열 수 없습니다. 다른 PDF 파일을 선택해 주세요.',
 };
 
+// ===== 모션 코어 — apple-design.md §4·§6 =====
+
+// 감쇠 조화 진동자 한 스텝 (폐형식 해 — dt가 커도 발산하지 않는다).
+// Apple 파라미터: dampingRatio(ζ, 1.0=오버슈트 없음), response(T초) → ω0 = 2π/T.
+// state {value, velocity}를 dt초 전진시킨 새 상태를 돌려준다.
+// 재타기팅은 현재 상태에서 이어받으므로 위치·속도가 연속이다 (§3 — "brick wall" 금지).
+function springStep(state, target, dampingRatio, response, dt) {
+  const w0 = 2 * Math.PI / response;
+  const x0 = state.value - target;
+  const v0 = state.velocity;
+  let x, v;
+  if (dampingRatio < 1) {
+    const wd = w0 * Math.sqrt(1 - dampingRatio * dampingRatio);
+    const decay = Math.exp(-dampingRatio * w0 * dt);
+    const cos = Math.cos(wd * dt), sin = Math.sin(wd * dt);
+    const B = (v0 + dampingRatio * w0 * x0) / wd;
+    x = decay * (x0 * cos + B * sin);
+    v = decay * ((B * wd - dampingRatio * w0 * x0) * cos - (x0 * wd + dampingRatio * w0 * B) * sin);
+  } else {
+    // 임계 감쇠 (ζ = 1)
+    const decay = Math.exp(-w0 * dt);
+    const B = v0 + w0 * x0;
+    x = decay * (x0 + B * dt);
+    v = decay * (B - w0 * (x0 + B * dt));
+  }
+  return { value: target + x, velocity: v };
+}
+
+// 모멘텀 투사 — 릴리스 속도로 관성 정지 지점을 예측한다 (§6, Apple 원본 수식).
+function project(initialVelocity, decelerationRate = 0.998) {
+  return (initialVelocity / 1000) * decelerationRate / (1 - decelerationRate);
+}
+
+// 투사 지점에서 가장 가까운 90° 디텐트.
+function snapDetent(angle) {
+  return Math.round(angle / 90) * 90;
+}
+
+// 각도차를 최단 경로(-180 ~ +180]로 접는다 — 원호 드래그의 프레임 간 증분용.
+function shortestDeg(delta) {
+  return ((delta + 180) % 360 + 360) % 360 - 180;
+}
+
+// 드래그 판별 (§10) — 10px 히스테리시스 후, 스크롤(가로 직선)과 회전(원호)을 가른다.
+// 세로 성분이 우세하면 회전. 가로 우세라도 그랩 지점이 페이지 상·하단 밴드(중심에서
+// 절반 높이의 1/3 초과)면 림을 돌리는 회전으로 본다. 중앙 밴드의 가로 드래그만 스크롤.
+function classifyDrag(dx, dy, grabOffsetY, halfHeight) {
+  if (Math.hypot(dx, dy) < 10) return 'pending';
+  if (Math.abs(dy) > Math.abs(dx)) return 'rotate';
+  return Math.abs(grabOffsetY) > halfHeight / 3 ? 'rotate' : 'scroll';
+}
+
+// 릴리스 결정 — 각속도를 투사해(§6) 가장 가까운 디텐트를 고른다.
+// 속도의 부호·크기가 투사 지점을 밀어 진행/복귀를 자연히 가른다.
+function releaseDetent(angle, velocity, decelerationRate = 0.99) {
+  return snapDetent(angle + project(velocity, decelerationRate));
+}
+
 // ===== CORE-END =====
 
 function downloadBytes(bytes, fileName) {
@@ -423,10 +703,17 @@ function downloadBytes(bytes, fileName) {
 // ===== 미리보기 (최대 첫 10페이지, 가로 슬라이드 — pdfjs-dist, 워커도 같은 고정 버전) =====
 
 const PREVIEW_PAGE_COUNT = 10;
-const PREVIEW_CSS_HEIGHT = 240; // 세로폭 고정 — 표시 높이는 CSS(.preview-canvas)와 함께 240px
 const previewArea = document.getElementById('preview-area');
 const previewStrip = document.getElementById('preview-strip');
 const previewCaption = document.getElementById('preview-caption');
+
+// 미리보기 표시 높이 — 무대의 주인공. 상단 크롬만 제외하고 뷰포트를 크게 차지하며,
+// 종이 아래쪽은 하단 플로팅 툴바 밑으로 지나간다 (§12).
+// 좁은 화면은 2단 툴바 높이를 함께 빼서 카드가 캡션과 툴바 사이에 균형 있게 놓인다.
+function previewCssHeight() {
+  const chrome = window.innerWidth <= 640 ? 330 : 240;
+  return Math.round(Math.min(820, Math.max(240, window.innerHeight - chrome)));
+}
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -434,13 +721,234 @@ if (window.pdfjsLib) {
 }
 
 let previewDoc = null;   // pdf.js 문서 — 파일이 바뀔 때만 교체
-let previewPages = [];   // 최대 3개 페이지 핸들
+let previewPages = [];   // 최대 10개 페이지 핸들
 let renderSeq = 0;       // 연타로 겹친 렌더링 중 최신 것만 화면에 남긴다
+
+// ===== 회전 모션 상태 — 연속 각도 위의 스프링 (§3·§4) =====
+// 캔버스는 정준 디텐트에서 크리스프하게 렌더되고, 그 사이의 모든 프레임은
+// CSS transform(rotate+scale)과 프레임 폭 보간으로 표현한다.
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
+const ROTATION_DAMPING = 0.8;   // 회전 권장값 (§4)
+const ROTATION_RESPONSE = 0.4;
+
+let frames = [];            // {el, canvas, page, w0, h0}
+let displayAngle = 0;       // 화면에 보이는 연속 각도 (presentation value)
+let displayVelocity = 0;
+let springTargetAngle = 0;  // 연속 목표 각도 — 버튼·제스처가 가산한다
+let crispAngle = 0;         // 마지막 크리스프 렌더링의 연속 각도
+let rotationRaf = 0, rotationTick = 0;
+let drag = null;            // 원호 드래그 상태 (아래 제스처 절)
+
+// 정준 각도(0|90|180|270)를 reference에 가장 가까운 연속 표기로 올린다.
+function nearestContinuous(canonical, reference) {
+  return canonical + Math.round((reference - canonical) / 360) * 360;
+}
+
+// 현재 displayAngle을 모든 프레임에 반영한다.
+// 회전된 경계 상자를 무대 경계(세로: 무대 높이, 가로: 뷰포트 85%)에 맞추는
+// 연속 스케일 — 임의 각도에서 성립하므로 자유 드래그(§2)에도 그대로 쓰인다.
+// 90° 배수에서는 크리스프 렌더 크기와 정확히 일치해 스왑 점프가 없다.
+function applyRotationTransforms() {
+  const theta = displayAngle - crispAngle;
+  const rad = theta * Math.PI / 180;
+  const absCos = Math.abs(Math.cos(rad)), absSin = Math.abs(Math.sin(rad));
+  const maxH = previewCssHeight();
+  const maxW = window.innerWidth * 0.85;
+  for (const f of frames) {
+    const rotW = absCos * f.w0 + absSin * f.h0;
+    const rotH = absSin * f.w0 + absCos * f.h0;
+    const s = Math.min(maxH / rotH, maxW / rotW);
+    f.el.style.width = (s * rotW).toFixed(1) + 'px';
+    // 항상 transform을 유지한다 — 레이어가 내려갔다 다시 올라오는 콜드 스타트를 막는다 (§1·§11)
+    f.canvas.style.transform = 'rotate(' + theta.toFixed(3) + 'deg) scale(' + s.toFixed(4) + ')';
+  }
+}
+
+function rotationFrame(ts) {
+  // dt 상한 32ms — 첫 프레임·프레임 드랍에서도 한 번에 크게 건너뛰지 않는다 (§11 스트로빙 방지)
+  const dt = Math.min(0.032, Math.max(0.001, (ts - rotationTick) / 1000));
+  rotationTick = ts;
+  const next = springStep(
+    { value: displayAngle, velocity: displayVelocity },
+    springTargetAngle, ROTATION_DAMPING, ROTATION_RESPONSE, dt
+  );
+  displayAngle = next.value;
+  displayVelocity = next.velocity;
+  if (Math.abs(displayAngle - springTargetAngle) < 0.05 && Math.abs(displayVelocity) < 2) {
+    displayAngle = springTargetAngle;
+    displayVelocity = 0;
+    applyRotationTransforms();
+    rotationRaf = 0;
+    // 디텐트 안착 — 해당 각도로 크리스프 재렌더 (시각 크기는 동일, 선명화는 크로스페이드로)
+    renderPreviews(normalizeAngle(springTargetAngle), true).catch(() => {});
+    return;
+  }
+  applyRotationTransforms();
+  rotationRaf = requestAnimationFrame(rotationFrame);
+}
+
+// 새 연속 목표로 스프링을 보낸다. 진행 중이면 현재 표시값·속도에서 이어받는다 (§3).
+// initialVelocity가 주어지면 릴리스 속도를 스프링에 인계한다 (§5).
+function animateRotationTo(newTarget, initialVelocity) {
+  springTargetAngle = newTarget;
+  if (typeof initialVelocity === 'number') displayVelocity = initialVelocity;
+  if (REDUCED_MOTION.matches || !frames.length) {
+    // 모션 대체 — 짧은 베일 페이드와 함께 즉시 반영 (§14, 하드 컷 회피)
+    displayAngle = newTarget; displayVelocity = 0;
+    previewStrip.classList.add('rm-fade');
+    renderPreviews(normalizeAngle(newTarget))
+      .catch(() => {})
+      .then(() => { setTimeout(() => previewStrip.classList.remove('rm-fade'), 60); });
+    return;
+  }
+  if (!rotationRaf) {
+    rotationTick = performance.now();
+    rotationRaf = requestAnimationFrame(rotationFrame);
+  }
+}
+
+// ===== 툴바 스프링 — 아래에서 떠오르고 아래로 물러난다 (§7 대칭 경로, 임계 감쇠) =====
+
+let toolbarPos = 130, toolbarVel = 0, toolbarTarget = 130;
+let toolbarRaf = 0, toolbarTick = 0;
+
+function toolbarFrame(ts) {
+  const dt = Math.min(0.032, Math.max(0.001, (ts - toolbarTick) / 1000));
+  toolbarTick = ts;
+  // 퇴장은 가시 구간이 짧아 체감이 3배 빨라지므로 response를 늘려 등장과 시간 대칭을 맞춘다 (§7)
+  const response = toolbarTarget >= 130 ? 0.5 : 0.35;
+  const next = springStep({ value: toolbarPos, velocity: toolbarVel }, toolbarTarget, 1.0, response, dt);
+  toolbarPos = next.value;
+  toolbarVel = next.velocity;
+  toolbar.style.transform = 'translate(-50%, ' + toolbarPos.toFixed(2) + '%)';
+  if (Math.abs(toolbarPos - toolbarTarget) < 0.1 && Math.abs(toolbarVel) < 0.5) {
+    toolbarPos = toolbarTarget; toolbarVel = 0; toolbarRaf = 0;
+    toolbar.style.transform = 'translate(-50%, ' + toolbarPos + '%)';
+    if (toolbarTarget >= 130) toolbar.hidden = true;
+    return;
+  }
+  toolbarRaf = requestAnimationFrame(toolbarFrame);
+}
+
+function setToolbarShown(shown) {
+  toolbarTarget = shown ? 0 : 130;
+  if (REDUCED_MOTION.matches) {
+    toolbarPos = toolbarTarget; toolbarVel = 0;
+    toolbar.style.transform = 'translate(-50%, ' + toolbarPos + '%)';
+    toolbar.hidden = !shown;
+    return;
+  }
+  if (shown) toolbar.hidden = false;
+  if (!toolbarRaf) {
+    toolbarTick = performance.now();
+    toolbarRaf = requestAnimationFrame(toolbarFrame);
+  }
+}
+
+// ===== 원호 드래그 — 페이지를 잡아 비틀어 회전한다 (§2·§3·§5·§6·§10) =====
+
+// 제스처와 버튼이 합류하는 단일 상태 경로 — 목표 디텐트 확정과 UI 동기화.
+function commitRotationTarget(newTarget, velocity) {
+  accumulatedDelta = normalizeAngle(Math.round(newTarget));
+  syncNameInput();
+  updateAngleBadge();
+  updateControls();
+  // 완료 피드백 (§16) — 0°는 다운로드가 꺼지는 이유를, 그 외에는 다음 행동을 말한다.
+  status.textContent = accumulatedDelta === 0
+    ? '회전 없음 — 방향을 바꾸면 다운로드할 수 있습니다.'
+    : DELTA_LABELS[accumulatedDelta] + ' — 다운로드하면 이 방향으로 저장됩니다.';
+  animateRotationTo(newTarget, velocity);
+}
+
+function pointerAngle(e, d) {
+  return Math.atan2(e.clientY - d.cy, e.clientX - d.cx) * 180 / Math.PI;
+}
+
+previewStrip.addEventListener('pointerdown', (e) => {
+  if (!frames.length || !selectedBytes) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const canvas = e.target && e.target.closest ? e.target.closest('.preview-canvas') : null;
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+  // 스냅 애니메이션 중에도 잡는 순간 현재 표시값에서 이어받는다 (§3)
+  if (rotationRaf) { cancelAnimationFrame(rotationRaf); rotationRaf = 0; }
+  drag = {
+    id: e.pointerId, mode: 'pending',
+    cx: cx, cy: cy,
+    startX: e.clientX, startY: e.clientY,
+    grabOffsetY: e.clientY - cy, halfH: rect.height / 2,
+    refAngle: 0,
+    startScrollLeft: previewStrip.scrollLeft,
+    history: [],
+    scrollVx: 0, lastX: e.clientX, lastT: e.timeStamp,
+  };
+  previewStrip.setPointerCapture(e.pointerId);
+});
+
+previewStrip.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (drag.mode === 'pending') {
+    const mode = classifyDrag(
+      e.clientX - drag.startX, e.clientY - drag.startY, drag.grabOffsetY, drag.halfH
+    );
+    if (mode === 'pending') return;
+    drag.mode = mode;
+    if (mode === 'rotate') {
+      drag.refAngle = pointerAngle(e, drag);
+      document.documentElement.classList.add('rotating-drag');
+    }
+  }
+  if (drag.mode === 'rotate') {
+    // 1:1 추적 — 그랩 벡터의 각도 변화가 곧 회전 (§2)
+    const a = pointerAngle(e, drag);
+    displayAngle += shortestDeg(a - drag.refAngle);
+    drag.refAngle = a;
+    displayVelocity = 0;
+    drag.history.push({ t: e.timeStamp, a: displayAngle });
+    while (drag.history.length > 2 && e.timeStamp - drag.history[0].t > 120) drag.history.shift();
+    // 피드백은 인터랙션 도중에 연속으로 (§1) — 배지가 라이브 각도를 따라간다
+    angleBadge.textContent = (Math.round(normalizeAngle(displayAngle)) % 360) + '°';
+    applyRotationTransforms();
+  } else {
+    // 마우스 스크롤 드래그 — 1:1, 릴리스 시 모멘텀 투사
+    previewStrip.scrollLeft = drag.startScrollLeft - (e.clientX - drag.startX);
+    const dt = e.timeStamp - drag.lastT;
+    if (dt > 0) drag.scrollVx = (e.clientX - drag.lastX) / dt * 1000;
+    drag.lastX = e.clientX; drag.lastT = e.timeStamp;
+  }
+});
+
+function endDrag(e, cancelled) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag;
+  drag = null;
+  document.documentElement.classList.remove('rotating-drag');
+  if (d.mode === 'rotate') {
+    // 릴리스 각속도(최근 120ms 창) → 투사 → 디텐트 → 속도 인계 스냅 (§5·§6)
+    let v = 0;
+    const h = d.history;
+    if (!cancelled && h.length >= 2) {
+      const first = h[0], last = h[h.length - 1];
+      if (last.t > first.t) v = (last.a - first.a) / (last.t - first.t) * 1000;
+    }
+    commitRotationTarget(releaseDetent(displayAngle, v), v);
+  } else if (d.mode === 'scroll' && !cancelled && Math.abs(d.scrollVx) > 50) {
+    previewStrip.scrollBy({ left: -project(d.scrollVx), behavior: 'smooth' });
+  }
+}
+previewStrip.addEventListener('pointerup', (e) => endDrag(e, false));
+previewStrip.addEventListener('pointercancel', (e) => endDrag(e, true));
 
 function clearPreview() {
   previewArea.hidden = true;
   previewStrip.replaceChildren();
   previewPages = [];
+  frames = [];
+  if (rotationRaf) { cancelAnimationFrame(rotationRaf); rotationRaf = 0; }
+  displayAngle = 0; displayVelocity = 0;
+  springTargetAngle = 0; crispAngle = 0;
+  drag = null;
   if (previewDoc) {
     previewDoc.destroy();
     previewDoc = null;
@@ -464,40 +972,83 @@ async function loadPreview(pdfBytes) {
 
 // 누적 회전을 반영해 미리보기를 다시 그린다.
 // 뷰포트 회전 = 페이지의 기존 회전값(/Rotate) + 누적 회전 — 다운로드 결과와 같은 방향이다.
-async function renderPreviews(deltaAngle) {
+async function renderPreviews(deltaAngle, fadeSwap) {
   if (!previewPages.length) return;
   const seq = ++renderSeq;
+  const oldFrames = fadeSwap ? frames : null;
   const outputScale = window.devicePixelRatio || 1;
-  const canvases = [];
+  const cssHeight = previewCssHeight();
+  const nextFrames = [];
   for (const page of previewPages) {
     const rotation = nextRotation(page.rotate, deltaAngle);
     const base = page.getViewport({ scale: 1, rotation: rotation });
-    const viewport = page.getViewport({ scale: PREVIEW_CSS_HEIGHT / base.height, rotation: rotation });
+    // 세로는 무대 높이에, 가로는 뷰포트 85%에 맞춘다 — 가로 페이지도 잘리지 않는다
+    const scale = Math.min(cssHeight / base.height, (window.innerWidth * 0.85) / base.width);
+    const viewport = page.getViewport({ scale: scale, rotation: rotation });
     const canvas = document.createElement('canvas');
     canvas.className = 'preview-canvas';
-    // 표시 크기는 CSS(height 240px 고정, width auto)가 정하고,
-    // 비트맵은 devicePixelRatio 배율로 선명도를 확보한다.
+    // 표시 크기는 style로 고정하고, 비트맵은 devicePixelRatio 배율로 선명도를 확보한다.
+    const cssW = Math.round(viewport.width), cssH = Math.round(viewport.height);
     canvas.width = Math.floor(viewport.width * outputScale);
     canvas.height = Math.floor(viewport.height * outputScale);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
     await page.render({
       canvasContext: canvas.getContext('2d'),
       viewport: viewport,
       transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null,
     }).promise;
-    canvases.push(canvas);
+    const el = document.createElement('div');
+    el.className = 'page-frame';
+    el.style.width = cssW + 'px';
+    el.style.height = cssHeight + 'px';
+    el.appendChild(canvas);
+    nextFrames.push({ el: el, canvas: canvas, page: page, w0: cssW, h0: cssH });
   }
   if (seq !== renderSeq) return; // 그 사이 더 새로운 렌더링이 시작됨 — 이 결과는 버린다
-  previewStrip.replaceChildren(...canvases);
+  previewStrip.replaceChildren(...nextFrames.map(f => f.el));
+  frames = nextFrames;
+  // 이 렌더링이 표현하는 연속 각도 — 진행 중인 스프링·드래그가 있으면 그 기준으로 이어붙인다
+  crispAngle = nearestContinuous(normalizeAngle(deltaAngle), displayAngle);
+  if (!rotationRaf && !drag) {
+    displayAngle = crispAngle;
+    springTargetAngle = crispAngle;
+    displayVelocity = 0;
+  }
+  applyRotationTransforms();
   previewArea.hidden = false;
+  // 선명화 크로스페이드 (§14 — 급격한 밝기 점프 회피): 안착 스왑에서만,
+  // 직전 화면의 캔버스를 새 프레임 위에 겹쳐 150ms 페이드아웃한다.
+  if (oldFrames) {
+    for (let i = 0; i < frames.length && i < oldFrames.length; i++) {
+      const oldCanvas = oldFrames[i].canvas;
+      oldCanvas.classList.add('stale');
+      oldCanvas.style.transform = 'translate(-50%, -50%) ' + oldCanvas.style.transform;
+      frames[i].el.appendChild(oldCanvas);
+      requestAnimationFrame(() => { oldCanvas.style.opacity = '0'; });
+      setTimeout(() => oldCanvas.remove(), 220);
+    }
+  }
 }
+
+// 뷰포트 크기·방향이 바뀌면 주인공(미리보기)의 크기를 다시 맞춘다.
+// 스프링 진행 중이면 건드리지 않는다 — 안착 시 크리스프 렌더가 어차피 온다.
+let resizeTimer = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (!rotationRaf) renderPreviews(accumulatedDelta).catch(() => {});
+  }, 200);
+});
 
 const input = document.getElementById('file-input');
 const status = document.getElementById('status');
 const rotateButtons = Array.from(document.querySelectorAll('.rotate-button'));
 const downloadButton = document.getElementById('download-button');
 const nameInput = document.getElementById('name-input');
-const controls = document.getElementById('controls');
-const fileLabel = document.getElementById('file-label');
+const welcome = document.getElementById('welcome');
+const topBar = document.getElementById('top-bar');
+const toolbar = document.getElementById('toolbar');
 const fileMeta = document.getElementById('file-meta');
 const angleBadge = document.getElementById('angle-badge');
 
@@ -539,12 +1090,26 @@ function updateAngleBadge() {
 
 nameInput.addEventListener('input', () => { fileNameEdited = true; });
 
-// 파일 선택 전 첫 화면 상태 — 컨트롤은 숨기고 파일 선택을 주 액션으로 승격한다.
+// 파일 선택 전 첫 화면 상태 — 뷰어 크롬을 걷고 환영 스택으로 복귀한다.
 function resetToFileSelection() {
-  controls.hidden = true;
-  fileMeta.hidden = true;
-  fileLabel.classList.add('primary');
-  fileLabel.textContent = 'PDF 파일 선택';
+  welcome.hidden = false;
+  topBar.hidden = true;
+  fileMeta.replaceChildren();
+  setToolbarShown(false);
+}
+
+// 뷰어 모드 — 미리보기가 주인공, 컨트롤은 하단 플로팅 툴바 (단계적 노출).
+function enterViewerMode(fileName, pageCount) {
+  welcome.hidden = true;
+  topBar.hidden = false;
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'file-meta-name';
+  nameSpan.textContent = fileName;
+  const countSpan = document.createElement('span');
+  countSpan.className = 'file-meta-count';
+  countSpan.textContent = '· ' + pageCount + '페이지';
+  fileMeta.replaceChildren(nameSpan, countSpan);
+  setToolbarShown(true);
 }
 
 // 파일 선택 공통 경로 — <input> 선택과 드래그 앤 드롭이 함께 사용한다.
@@ -570,15 +1135,9 @@ async function openFile(file) {
     const pageCount = await assertOpenablePdf(bytes, window.PDFLib);
     selectedBytes = bytes;
     selectedName = file.name;
-    // 단계적 노출 — 파일이 열린 뒤에야 회전·이름·다운로드가 나타나고,
-    // 파일 선택 버튼은 고스트 "다른 파일 선택"으로 물러난다.
-    controls.hidden = false;
-    fileMeta.textContent = file.name + ' · ' + pageCount + '페이지';
-    fileMeta.hidden = false;
-    fileLabel.classList.remove('primary');
-    fileLabel.textContent = '다른 파일 선택';
+    enterViewerMode(file.name, pageCount);
     updateControls();
-    status.textContent = '회전 버튼으로 방향을 맞춘 뒤 다운로드 버튼을 눌러 주세요.';
+    status.textContent = '페이지를 잡아 돌리거나 회전 버튼으로 방향을 맞춘 뒤 다운로드해 주세요.';
     // 미리보기 실패는 회전·다운로드를 막지 않는다 — 버튼 활성화 이후 별도 try로 감싼다.
     try {
       await loadPreview(selectedBytes);
@@ -616,20 +1175,13 @@ window.addEventListener('drop', (e) => {
   if (file) openFile(file); // 단일 파일만 — 첫 파일 외에는 무시 (CONTEXT.md "파일 선택")
 });
 
-// 회전 버튼 — 누적 회전을 갱신하고 미리보기를 즉시 다시 그린다. 다운로드는 일어나지 않는다.
+// 회전 버튼 — 제스처와 같은 상태 경로로 90°씩 회전한다. 다운로드는 일어나지 않는다.
 for (const button of rotateButtons) {
   button.addEventListener('click', () => {
     if (!selectedBytes) return;
-    accumulatedDelta = nextRotation(accumulatedDelta, Number(button.dataset.delta));
-    syncNameInput();
-    updateAngleBadge();
-    updateControls();
-    // 0°로 돌아오면 다운로드가 꺼지는 이유를 함께 알려준다.
-    status.textContent = accumulatedDelta === 0
-      ? '현재 회전: 회전 없음 — 회전 버튼으로 방향을 맞추면 다운로드할 수 있습니다.'
-      : '현재 회전: ' + DELTA_LABELS[accumulatedDelta];
-    // 렌더링 실패는 조작을 막지 않는다. 연타 시 renderSeq가 최신 결과만 남긴다.
-    renderPreviews(accumulatedDelta).catch(() => {});
+    // 반시계 버튼(정준 270)은 시각적으로 -90° 방향이다.
+    const signed = Number(button.dataset.delta) === 270 ? -90 : 90;
+    commitRotationTarget(snapDetent(springTargetAngle) + signed);
   });
 }
 
